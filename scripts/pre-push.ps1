@@ -24,10 +24,11 @@ function Warn([string]$msg) { Write-Host "  [!]   $msg" -ForegroundColor $YELLOW
 function Fail([string]$msg) { Write-Host "  [X]   $msg" -ForegroundColor $RED    }
 function Info([string]$msg) { Write-Host "        $msg" -ForegroundColor $GRAY   }
 
-# ── Detecta release branch (usado em varias secoes) ──────────────────────────
+# ── Detecta release branch mais recente (YYYY-MM-DD ordena corretamente) ─────
 $RELEASE_BRANCH = git branch --list "release/*" 2>$null |
     ForEach-Object { $_ -replace '^\*?\s+', '' } |
-    Select-Object -First 1
+    Sort-Object |
+    Select-Object -Last 1
 
 # ── 1. Branch atual ──────────────────────────────────────────────────────────
 Header "1. Branch atual"
