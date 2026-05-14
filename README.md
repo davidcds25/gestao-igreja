@@ -242,6 +242,22 @@ Para ter validação automática sem complicar muito, podemos usar um workflow l
 
 Esse workflow ajuda a detectar regressões antes do merge e mantém o processo de release mais seguro.
 
+## Exemplo de pipeline simples para o seu projeto
+
+- `build` — instalar dependências
+- `test` — rodar validação / `py_compile` / `pytest`
+- `package` — gerar executável com `pyinstaller`
+- `release` (opcional) — criar um artefato ou tag
+
+## Conclusão
+
+Para um sistema local como este, um pipeline leve já traz valor:
+
+- valida alterações automaticamente
+- evita regressões ao fazer merge
+- documenta o que deve ser feito antes de liberar a release
+- não precisa reproduzir um fluxo completo de `QA` e `Prod` como em sistemas online hospedados
+
 ---
 
 Desenvolvido com Python 3 + tkinter + SQLite
