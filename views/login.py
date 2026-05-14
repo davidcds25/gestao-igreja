@@ -75,7 +75,7 @@ class LoginWindow:
 
     def __init__(self, root):
         self.root = root
-        self.root.title(f"{APP_NAME} — Sistema de Gestão")
+        self.root.title(APP_NAME)
         self.root.configure(bg=COLORS["bg_dark"])
         self.root.state("zoomed")
         self.current_user = None
@@ -129,7 +129,7 @@ class LoginWindow:
 
         brand_text = tk.Frame(logo_row, bg=bg)
         brand_text.pack(side=tk.LEFT, padx=(SPACING[3], 0))
-        tk.Label(brand_text, text="Igreja Vida Plena",
+        tk.Label(brand_text, text=APP_NAME,
                  font=(FONTS["body"][0], 17, "bold"),
                  bg=bg, fg=COLORS["text"]).pack(anchor=tk.W)
         tk.Label(brand_text,
@@ -201,10 +201,11 @@ class LoginWindow:
                  bg=COLORS["bg_card"], fg=COLORS["verse_gold"]).pack(anchor=tk.E)
 
         def _on_verse(v):
-            panel.after(0, lambda: (
-                verse_text_var.set(f'"{v["text"]}"'),
-                verse_ref_var.set(f'— {v["reference"]}'),
-            ))
+            def _update():
+                if panel.winfo_exists():
+                    verse_text_var.set(f'"{v["text"]}"')
+                    verse_ref_var.set(f'— {v["reference"]}')
+            self.root.after(0, _update)
 
         get_verse_of_day(_on_verse)
 

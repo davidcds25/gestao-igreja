@@ -25,6 +25,11 @@ import tkinter as tk
 from .ui import COLORS, SPACING
 from .ui.components import header_bar, sidebar
 
+try:
+    from config import APP_NAME
+except ImportError:
+    APP_NAME = "Sistema de Gestão"
+
 
 SIDEBAR_ITEMS = [
     {"key": "home",       "icon": "🏠", "label": "Página Inicial"},
@@ -52,7 +57,7 @@ class AppShell:
         self._items = items
 
         # janela raiz
-        root.title("Igreja Vida Plena — Sistema de Gestão")
+        root.title(APP_NAME)
         root.configure(bg=COLORS["bg_dark"])
         try:
             root.state("zoomed")  # Windows
@@ -140,7 +145,7 @@ def main():
     root = tk.Tk()
     shell = AppShell(
         root,
-        current_user={"nome": "David Cavalcante", "nivel": "Admin"},
+        current_user={"nome": "Usuário", "nivel": "Admin"},
     )
     shell.register("home",       lambda c: home.render(c))
     shell.register("membros",    lambda c: members.render(c))
