@@ -1,4 +1,4 @@
-# Igreja Vida Plena — Sistema de Gestão
+# Sistema de Gestão para Igrejas
 
 Aplicativo desktop para gestão de igrejas: membros, eventos, comunicação via WhatsApp e versículo diário. Desenvolvido em Python/tkinter com banco de dados local SQLite e design system próprio.
 
@@ -181,7 +181,7 @@ netsh interface portproxy add v4tov4 listenport=3000 listenaddress=127.0.0.1 con
 
 ```bash
 sudo service docker start
-cd /mnt/c/Users/<seu-usuario>/OneDrive/Documentos/Projeto
+cd /mnt/c/caminho/ate/o/projeto   # substitua pelo caminho onde você clonou o repositório
 sudo docker compose up -d
 ```
 
@@ -196,6 +196,7 @@ sudo docker compose up -d
 
 ```bash
 sudo service docker start
+cd /mnt/c/caminho/ate/o/projeto
 sudo docker compose up -d   # iniciar
 sudo docker compose down    # parar
 ```
@@ -212,10 +213,10 @@ A sessão é salva em volume persistente — não precisa escanear o QR novament
 ## Compilar para Executável
 
 ```bash
-pyinstaller --onefile --windowed --name "Igreja-Vida-Plena" main.py
+pyinstaller --onefile --windowed --name "gestao-igreja" main.py
 ```
 
-O executável será gerado em `dist/Igreja-Vida-Plena.exe`.
+O executável será gerado em `dist/gestao-igreja.exe`.
 
 ---
 
