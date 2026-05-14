@@ -45,40 +45,73 @@ MAJOR.MINOR.PATCH
 
 ## Fluxo de Release
 
+### Modelo de branches do projeto
+
+```
+main  ←  histórico permanente de produção
+ └── release/YYYY-MM-DD  ←  integração de features (recriada a cada deploy)
+      ├── feat/...
+      └── fix/...
+```
+
+A branch `release/YYYY-MM-DD` existe **continuamente** entre deploys.
+Todas as features e fixes são mergeadas nela. Quando vai para produção,
+ela é mergeada na `main`, apagada, e uma nova é criada com a data do dia.
+
+---
+
 ### 1. Verificar estado do repositório
 ```bash
-# Garantir que main está limpa e atualizada
-git checkout main
-git status               # nenhuma alteração pendente
-git log --oneline -20    # revisar commits desde o último release
-git tag --sort=-version:refname | head -5   # ver últimas tags
+# Ver a branch release atual
+git branch --list "release/*"
+
+# Garantir que todos os PRs planejados já foram mergeados na release
+git log --oneline release/YYYY-MM-DD ^main
+
+# Ver últimas tags
+git tag --sort=-version:refname | head -5
 ```
 
 ### 2. Determinar a versão
 ```bash
-# Ver commits desde a última tag
-git log v0.3.0..HEAD --oneline
+# Ver commits desde a última tag até a release atual
+git log v0.3.0..release/YYYY-MM-DD --oneline
 ```
 
 Analisar os tipos de commit e aplicar a regra SemVer.
 
-### 3. Criar branch de release (para versões MINOR e MAJOR)
+### 3. Fazer o deploy para main
 ```bash
-git checkout -b release/v1.0.0
-# Ajustes finais: changelog, versão em README, etc.
-git commit -m "chore: prepara release v1.0.0"
+# Merge da release na main
 git checkout main
-git merge --no-ff release/v1.0.0
-git branch -d release/v1.0.0
-```
+git pull origin main
+git merge --no-ff release/YYYY-MM-DD -m "chore: merge release YYYY-MM-DD → main"
 
-Para PATCH, pode ir direto da `main`.
+# Criar a tag na main
+git tag -a v1.0.0 -m "Release v1.0.0 — DD/MM/AAAA"
 
-### 4. Criar a tag
-```bash
-git tag -a v1.0.0 -m "Release v1.0.0 — Primeira versão pública"
+# Publicar
 git push origin main --tags
 ```
+
+### 4. Reciclar a branch release
+
+Após o merge na main, apagar a branch antiga e criar a nova com a data de hoje:
+
+```bash
+# Apagar a branch release anterior (local e remota)
+git branch -D release/YYYY-MM-DD
+git push origin --delete release/YYYY-MM-DD
+
+# Criar a nova branch release a partir da main atualizada
+$DATE = (Get-Date -Format "yyyy-MM-dd")
+git checkout main
+git checkout -b "release/$DATE"
+git push -u origin "release/$DATE"
+```
+
+A nova `release/$DATE` passa a ser a base para todos os próximos
+`feat/`, `fix/` e demais branches até o próximo deploy.
 
 ---
 

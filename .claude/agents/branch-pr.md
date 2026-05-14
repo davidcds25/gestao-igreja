@@ -135,24 +135,32 @@ fechamento automático ao conectar.
 
 ### Ciclo de vida
 ```
-main
- └── feat/nova-funcionalidade     ← branch criada a partir da main
-      ├── commits de desenvolvimento
-      └── PR aberto → revisão → merge → branch deletada
+main  (histórico estável — só recebe merges de release)
+ └── release/YYYY-MM-DD  (base de integração — SEMPRE parte da main)
+      ├── feat/nova-funcionalidade   ← criada a partir da release
+      │    ├── commits de desenvolvimento
+      │    └── PR → revisão → merge na release → branch deletada
+      ├── fix/algum-bug
+      └── refactor/alguma-coisa
+           └── (quando pronto para produção)
+                merge release → main → tag → nova release criada
 ```
 
 ### Quando deletar a branch
-- Após merge aprovado na `main`
-- Branches `fix/` e `feat/` são de curta duração
-- Branches `release/` deletadas após a tag ser criada
+- Branches `feat/`, `fix/`, `refactor/` etc: após merge aprovado na `release/`
+- Branches `release/`: apagadas quando a **próxima release** é gerada
+- Nunca apagar `main`
 
 ---
 
 ## Comandos Úteis
 
 ```bash
-# Criar branch a partir da main atualizada
-git checkout main && git pull
+# Descobrir a branch release atual
+git branch --list "release/*"
+
+# Criar branch a partir da release atual (não da main)
+git checkout release/2026-05-14
 git checkout -b feat/whatsapp-popup-qr
 
 # Publicar a branch
@@ -161,7 +169,7 @@ git push -u origin feat/whatsapp-popup-qr
 # Ver branches locais
 git branch
 
-# Deletar branch local após merge
+# Deletar branch local após merge na release
 git branch -d feat/whatsapp-popup-qr
 
 # Deletar branch remota após merge
