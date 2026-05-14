@@ -24,6 +24,11 @@ function Warn([string]$msg) { Write-Host "  [!]   $msg" -ForegroundColor $YELLOW
 function Fail([string]$msg) { Write-Host "  [X]   $msg" -ForegroundColor $RED    }
 function Info([string]$msg) { Write-Host "        $msg" -ForegroundColor $GRAY   }
 
+# ── Detecta release branch (usado em varias secoes) ──────────────────────────
+$RELEASE_BRANCH = git branch --list "release/*" 2>$null |
+    ForEach-Object { $_ -replace '^\*?\s+', '' } |
+    Select-Object -First 1
+
 # ── 1. Branch atual ──────────────────────────────────────────────────────────
 Header "1. Branch atual"
 
@@ -35,22 +40,29 @@ Write-Host $BRANCH -ForegroundColor $CYAN
 
 if ($BRANCH -eq "main") {
     Fail "Voce esta na main. Nunca commite direto na main."
-    Warn "Crie uma feature branch a partir da release atual:"
-    Info "  git checkout release/<data>"
-    Info "  Peca ao Claude: 'rode o agente de branch-pr'"
+    Info ""
+    Info "  Crie uma feature branch a partir da release:"
+    if ($RELEASE_BRANCH) {
+        Info "    git checkout $RELEASE_BRANCH"
+    } else {
+        Info "    git checkout release/<data>"
+    }
+    Info "    git checkout -b feat/nome-da-feature"
     exit 1
 }
 
 if ($BRANCH -like "release/*") {
-    Warn "Voce esta na branch release. Commits diretos so para ajustes de release."
+    Fail "Voce esta diretamente na branch release. Nunca commite aqui."
+    Info ""
+    Info "  Crie uma feature branch a partir desta release e commite nela:"
+    Info "    git checkout -b feat/nome-da-feature"
+    Info "    # faca seus commits na feature branch"
+    Info "    # depois mergeie de volta: git checkout $BRANCH && git merge --no-ff feat/nome"
+    exit 1
 }
 
 # ── 2. Branch release atual ──────────────────────────────────────────────────
 Header "2. Branch release"
-
-$RELEASE_BRANCH = git branch --list "release/*" 2>$null |
-    ForEach-Object { $_.Trim() } |
-    Select-Object -First 1
 
 if ($RELEASE_BRANCH) {
     Ok "Release atual: $RELEASE_BRANCH"
