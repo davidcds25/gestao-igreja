@@ -506,14 +506,16 @@ class LoginWindow:
                 hora_str = f"{hi} → {hf}" if hf else hi
             status = _STATUS_MAP.get(a["status"], a["status"])
             mapped_events.append({
-                "id":     a["id"],
-                "dia":    dt.day if dt else 1,
-                "mes":    _MESES_SHORT[dt.month - 1] if dt else "---",
-                "hora":   hora_str,
-                "titulo": a["titulo"],
-                "local":  a["local"] or "",
-                "resp":   a["nome_responsavel"] or "—",
-                "status": status,
+                "id":          a["id"],
+                "dia":         dt.day if dt else 1,
+                "mes":         _MESES_SHORT[dt.month - 1] if dt else "---",
+                "hora":        hora_str,
+                "titulo":      a["titulo"],
+                "local":       a["local"] or "",
+                "resp":        a["nome_responsavel"] or "—",
+                "status":      status,
+                "funcao_alvo": a.get("funcao_alvo"),
+                "grupo_alvo":  a.get("grupo_alvo"),
             })
 
         mapped_bdays = []
@@ -575,6 +577,7 @@ class LoginWindow:
                 "niver_dia": m["aniversario_dia"],
                 "niver_mes": str(m["aniversario_mes"]) if m["aniversario_mes"] else None,
                 "color":     color,
+                "grupo":     m["grupo"] if m["grupo"] else None,
             })
         root = self.root
         refresh = lambda: shell.navigate("membros")
@@ -607,6 +610,10 @@ class LoginWindow:
                 fa = a["funcao_alvo"]
             except (IndexError, KeyError):
                 fa = None
+            try:
+                ga = a["grupo_alvo"]
+            except (IndexError, KeyError):
+                ga = None
             mapped.append({
                 "id":          a["id"],
                 "dia":         dt.day if dt else 1,
@@ -620,6 +627,7 @@ class LoginWindow:
                 "resp":        a["nome_responsavel"] or "—",
                 "status":      status,
                 "funcao_alvo": fa,
+                "grupo_alvo":  ga,
             })
         root    = self.root
         uid     = self.current_user["id"]
@@ -691,18 +699,25 @@ class LoginWindow:
             data["visitantes"] = visitantes
 
             funcao_counts = {}
+            grupo_counts  = {}
             for m in listar_membros():
                 f = m["funcao"] or "Membro"
                 funcao_counts[f] = funcao_counts.get(f, 0) + 1
+                g = m["grupo"]
+                if g:
+                    grupo_counts[g] = grupo_counts.get(g, 0) + 1
             data["funcao_counts"] = funcao_counts
+            data["grupo_counts"]  = grupo_counts
 
             raw_at = listar_atividades()
             data["total_events"] = len(raw_at)
             data["planejadas"]   = sum(1 for a in raw_at if a["status"] == "Planejado")
             data["realizadas"]   = sum(1 for a in raw_at if a["status"] == "Concluído")
             data["canceladas"]   = sum(1 for a in raw_at if a["status"] == "Cancelado")
-        except Exception:
-            pass
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            data.setdefault("_error", str(e))
         reports.render(parent, data=data)
 
     # ── AUXILIARES ─────────────────────────────────────────────────

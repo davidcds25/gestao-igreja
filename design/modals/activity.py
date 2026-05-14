@@ -112,9 +112,11 @@ class ActivityModal(StyledModal):
         two_col.columnconfigure(0, weight=1, uniform="c")
         two_col.columnconfigure(1, weight=1, uniform="c")
 
-        from core.members import FUNCOES as _FUNCOES
-        _fa_options = ["Toda a Igreja"] + list(_FUNCOES)
-        _fa_inicial = (at.get("funcao_alvo") or "Toda a Igreja") if at else "Toda a Igreja"
+        from core.members import FUNCOES as _FUNCOES, GRUPOS as _GRUPOS
+        _fa_options = ["(nenhum)", "Toda a Igreja"] + list(_FUNCOES)
+        _fa_inicial = (at.get("funcao_alvo") or "(nenhum)") if at else "(nenhum)"
+        _ga_options = ["(nenhum)"] + list(_GRUPOS)
+        _ga_inicial = (at.get("grupo_alvo") or "(nenhum)") if at else "(nenhum)"
 
         # Em edição: mostra o status atual como informação (somente leitura).
         # Mudanças de status acontecem pelos botões ✓ e ✗ na lista de atividades.
@@ -130,6 +132,15 @@ class ActivityModal(StyledModal):
         f_fa.grid(row=0, column=1, sticky="ew")
         self._fa_cb = select(f_fa, value=_fa_inicial, options=_fa_options)
         self._fa_cb.pack(fill=tk.X)
+
+        three_col = tk.Frame(parent, bg=bg)
+        three_col.pack(fill=tk.X, pady=(SPACING[2], 0))
+        three_col.columnconfigure(0, weight=1, uniform="gc")
+
+        f_ga = field(three_col, label="Grupo Alvo", hint="para WhatsApp")
+        f_ga.grid(row=0, column=0, sticky="ew")
+        self._ga_cb = select(f_ga, value=_ga_inicial, options=_ga_options)
+        self._ga_cb.pack(fill=tk.X)
 
     # ── data/hora ─────────────────────────────────────────────────────
 
@@ -261,7 +272,9 @@ class ActivityModal(StyledModal):
         fim         = self._get_fim() if self._has_fim.get() else None
         local       = self._local_e.get().strip() or None
         fa          = self._fa_cb.get()
-        funcao_alvo = None if fa == "Toda a Igreja" else fa
+        funcao_alvo = None if fa == "(nenhum)" else fa
+        ga          = self._ga_cb.get()
+        grupo_alvo  = None if ga == "(nenhum)" else ga
         uid         = self._current_user_id
 
         try:
@@ -269,7 +282,7 @@ class ActivityModal(StyledModal):
                 atualizar_atividade(
                     self._activity_id, titulo, descricao, "Geral",
                     inicio, fim, local, uid,
-                    self._at.get("status", "Planejado"), funcao_alvo,
+                    self._at.get("status", "Planejado"), funcao_alvo, grupo_alvo,
                 )
                 if uid:
                     registrar_log(
@@ -279,7 +292,7 @@ class ActivityModal(StyledModal):
                 messagebox.showinfo("Sucesso", "Atividade atualizada!", parent=self)
             else:
                 new_id = criar_atividade(titulo, descricao, "Geral",
-                                         inicio, fim, local, uid, funcao_alvo)
+                                         inicio, fim, local, uid, funcao_alvo, grupo_alvo)
                 if uid:
                     registrar_log(uid, f"Criou atividade: '{titulo}' (ID: {new_id})")
                 messagebox.showinfo("Sucesso", "Atividade criada!", parent=self)

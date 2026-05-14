@@ -158,7 +158,7 @@ def icon_button(parent, *, icon: str, tooltip: str = "",
                  highlightthickness=1)
     f.pack_propagate(False)
     lbl = tk.Label(f, text=icon, bg=bg, fg=fg,
-                   font=(FONTS["body"][0], int(size * 0.52)),
+                   font=(FONTS["body"][0], int(size * 0.38)),
                    cursor="hand2")
     lbl.pack(expand=True)
     if command:
@@ -781,7 +781,15 @@ def event_card(parent, *, event: dict, compact: bool = True, callbacks: dict = N
              bg=bg, fg=COLORS["text_muted"]).pack(side=tk.LEFT,
                                                   padx=(0, SPACING[4]))
     tk.Label(meta, text=f"👤 {event['resp']}", font=FONTS["small"],
-             bg=bg, fg=COLORS["text_muted"]).pack(side=tk.LEFT)
+             bg=bg, fg=COLORS["text_muted"]).pack(side=tk.LEFT,
+                                                  padx=(0, SPACING[4]))
+    if event.get("funcao_alvo"):
+        tk.Label(meta, text=f"🎯 {event['funcao_alvo']}", font=FONTS["small"],
+                 bg=bg, fg=COLORS["accent2"]).pack(side=tk.LEFT,
+                                                   padx=(0, SPACING[4]))
+    if event.get("grupo_alvo"):
+        tk.Label(meta, text=f"🏷 {event['grupo_alvo']}", font=FONTS["small"],
+                 bg=bg, fg=COLORS["purple"]).pack(side=tk.LEFT)
 
     # ações à direita (só no modo expandido, só botões com comando definido)
     if not compact:
@@ -826,7 +834,7 @@ def member_card(parent, *, member: dict, callbacks: dict = None):
     wrap = tk.Frame(parent, bg=bg,
                     highlightbackground=COLORS["divider"],
                     highlightthickness=1,
-                    height=180)
+                    height=186)
     wrap.pack_propagate(False)
     inner = tk.Frame(wrap, bg=bg)
     inner.pack(fill=tk.BOTH, expand=True,
@@ -844,8 +852,12 @@ def member_card(parent, *, member: dict, callbacks: dict = None):
     tk.Label(name_col, text=truncate(member["nome"], 32),
              font=FONTS["subtitle"], bg=bg, fg=COLORS["text"],
              anchor=tk.W).pack(anchor=tk.W, fill=tk.X)
-    badge(name_col, member["funcao"], kind=member["funcao"]).pack(anchor=tk.W,
-                                                                  pady=(2, 0))
+    badge_row = tk.Frame(name_col, bg=bg)
+    badge_row.pack(anchor=tk.W, pady=(2, 0))
+    badge(badge_row, member["funcao"], kind=member["funcao"]).pack(side=tk.LEFT)
+    if member.get("grupo"):
+        badge(badge_row, member["grupo"],
+              bg=COLORS["purple"], fg="#ffffff").pack(side=tk.LEFT, padx=(4, 0))
 
     badge(head, member["status"], kind=member["status"]).pack(side=tk.RIGHT)
 
@@ -869,11 +881,11 @@ def member_card(parent, *, member: dict, callbacks: dict = None):
 
     actions = tk.Frame(inner, bg=bg)
     actions.pack(side=tk.BOTTOM, anchor=tk.E, pady=(SPACING[3], 0))
-    icon_button(actions, icon="💬", tooltip="Enviar mensagem", size=36,
+    icon_button(actions, icon="💬", tooltip="Enviar mensagem", size=44,
                 command=callbacks.get("whatsapp")).pack(side=tk.LEFT, padx=2)
-    icon_button(actions, icon="✏", tooltip="Editar", size=36,
+    icon_button(actions, icon="✏", tooltip="Editar", size=44,
                 command=callbacks.get("edit")).pack(side=tk.LEFT, padx=2)
-    icon_button(actions, icon="🗑", tooltip="Excluir", size=36,
+    icon_button(actions, icon="✗", tooltip="Excluir", size=44,
                 color=COLORS["danger"],
                 command=callbacks.get("delete")).pack(side=tk.LEFT, padx=2)
     return wrap
