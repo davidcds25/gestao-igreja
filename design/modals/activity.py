@@ -116,11 +116,14 @@ class ActivityModal(StyledModal):
         _fa_options = ["Toda a Igreja"] + list(_FUNCOES)
         _fa_inicial = (at.get("funcao_alvo") or "Toda a Igreja") if at else "Toda a Igreja"
 
+        # Em edição: mostra o status atual como informação (somente leitura).
+        # Mudanças de status acontecem pelos botões ✓ e ✗ na lista de atividades.
+        _status_atual = (at.get("status") or "Planejado") if at else "Planejado"
+        _status_opts   = (["Planejado"] if not self._editing
+                          else sorted({_status_atual, "Planejado"}))
         f_status = field(two_col, label="Status")
         f_status.grid(row=0, column=0, sticky="ew", padx=(0, SPACING[3]))
-        self._status_cb = select(f_status,
-                                 value=(at.get("status") or "Planejado") if at else "Planejado",
-                                 options=["Planejado"])
+        self._status_cb = select(f_status, value=_status_atual, options=_status_opts)
         self._status_cb.pack(fill=tk.X)
 
         f_fa = field(two_col, label="Função Alvo", hint="para WhatsApp")

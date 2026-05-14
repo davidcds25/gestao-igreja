@@ -51,6 +51,11 @@ from .helpers import (
     lighten, darken, bind_hover,
 )
 
+try:
+    from config import APP_NAME as _APP_NAME
+except ImportError:
+    _APP_NAME = "Sistema de Gestão"
+
 
 # ══════════════════════════════════════════════════════════════════════
 # 1. BUILDING BLOCKS — átomos
@@ -573,7 +578,7 @@ def header_bar(parent, *, user: dict, on_profile=None, on_edit_profile=None, on_
     left = tk.Frame(f, bg=bg)
     left.pack(side=tk.LEFT, padx=SPACING[6])
     cross_icon(left, size=16, color=COLORS["accent"], bg=bg).pack(side=tk.LEFT, padx=(0, SPACING[3]))
-    tk.Label(left, text="Igreja Vida Plena", font=FONTS["subtitle"],
+    tk.Label(left, text=_APP_NAME, font=FONTS["subtitle"],
              bg=bg, fg=COLORS["accent"]).pack(side=tk.LEFT)
 
     right = tk.Frame(f, bg=bg)

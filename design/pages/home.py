@@ -24,7 +24,7 @@ from ..ui.components import (
 from ..ui.helpers import truncate
 
 
-_USER = {"nome": "David Cavalcante", "nivel": "Admin"}
+_USER = {"nome": "Usuário", "nivel": ""}
 
 _VERSE_FALLBACK = {
     "text": ("Não andeis ansiosos por coisa alguma; antes em tudo "
