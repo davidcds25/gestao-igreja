@@ -158,7 +158,7 @@ def icon_button(parent, *, icon: str, tooltip: str = "",
                  highlightthickness=1)
     f.pack_propagate(False)
     lbl = tk.Label(f, text=icon, bg=bg, fg=fg,
-                   font=(FONTS["body"][0], int(size * 0.45)),
+                   font=(FONTS["body"][0], int(size * 0.52)),
                    cursor="hand2")
     lbl.pack(expand=True)
     if command:
@@ -826,7 +826,7 @@ def member_card(parent, *, member: dict, callbacks: dict = None):
     wrap = tk.Frame(parent, bg=bg,
                     highlightbackground=COLORS["divider"],
                     highlightthickness=1,
-                    height=160)
+                    height=180)
     wrap.pack_propagate(False)
     inner = tk.Frame(wrap, bg=bg)
     inner.pack(fill=tk.BOTH, expand=True,
@@ -867,14 +867,13 @@ def member_card(parent, *, member: dict, callbacks: dict = None):
              font=FONTS["small"],
              bg=bg, fg=COLORS["text_muted"]).pack(side=tk.LEFT)
 
-    # ações — tamanho 32 para botões maiores e mais fáceis de clicar
     actions = tk.Frame(inner, bg=bg)
-    actions.pack(side=tk.BOTTOM, anchor=tk.E, pady=(SPACING[2], 0))
-    icon_button(actions, icon="💬", tooltip="Enviar mensagem", size=32,
+    actions.pack(side=tk.BOTTOM, anchor=tk.E, pady=(SPACING[3], 0))
+    icon_button(actions, icon="💬", tooltip="Enviar mensagem", size=36,
                 command=callbacks.get("whatsapp")).pack(side=tk.LEFT, padx=2)
-    icon_button(actions, icon="✏", tooltip="Editar", size=32,
+    icon_button(actions, icon="✏", tooltip="Editar", size=36,
                 command=callbacks.get("edit")).pack(side=tk.LEFT, padx=2)
-    icon_button(actions, icon="🗑", tooltip="Excluir", size=32,
+    icon_button(actions, icon="🗑", tooltip="Excluir", size=36,
                 color=COLORS["danger"],
                 command=callbacks.get("delete")).pack(side=tk.LEFT, padx=2)
     return wrap

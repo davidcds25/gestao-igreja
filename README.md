@@ -218,6 +218,30 @@ pyinstaller --onefile --windowed --name "gestao-igreja" main.py
 
 O executável será gerado em `dist/gestao-igreja.exe`.
 
+## Processos para a próxima release
+
+- Corrigir o layout da aba **Membros**.
+- Ao criar ou editar um membro, adicionar a opção de grupo:
+  - Homens
+  - Mulheres
+  - Casais
+- Nas reuniões e eventos, permitir marcar se a reunião é direcionada para um desses grupos.
+- Atualizar a aba de eventos para exibir claramente o público-alvo do encontro.
+- Garantir que filtros e relatórios também considerem o grupo selecionado.
+
+## CI simples sugerido
+
+Para ter validação automática sem complicar muito, podemos usar um workflow leve de CI com estes passos:
+
+1. `actions/setup-python` para configurar o Python.
+2. `pip install -r requirements.txt` para instalar dependências.
+3. Rodar um script de validação simples:
+   - `python -m pytest` (se houver testes)
+   - ou `python -m py_compile main.py` para checar se não há erros de sintaxe.
+4. Opcional: adicionar um lint básico caso configure o `flake8` ou `ruff` no futuro.
+
+Esse workflow ajuda a detectar regressões antes do merge e mantém o processo de release mais seguro.
+
 ---
 
 Desenvolvido com Python 3 + tkinter + SQLite
