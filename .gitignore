@@ -1,0 +1,45 @@
+# Banco de dados (contém dados pessoais)
+*.db
+*.db-shm
+*.db-wal
+
+# Config local com dados sensíveis
+config.py
+
+# Preferências locais do usuário (contém e-mail salvo)
+user_prefs.json
+
+# Cache e sessões WhatsApp
+verse_cache.json
+waha_sessions/
+
+# Ambiente virtual Python
+venv/
+.venv/
+env/
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# PyInstaller
+dist/
+build/
+*.spec
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log

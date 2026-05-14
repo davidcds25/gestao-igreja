@@ -1,0 +1,15 @@
+services:
+  waha:
+    image: devlikeapro/waha
+    container_name: waha-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - waha_sessions:/app/.sessions
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: NOWEB
+      WHATSAPP_API_KEY: igrejachave123
+
+volumes:
+  waha_sessions:

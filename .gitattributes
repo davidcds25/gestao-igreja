@@ -1,0 +1,12 @@
+# Força LF em todos os arquivos de texto — evita warnings LF→CRLF no Windows
+* text=auto eol=lf
+
+# Batch files precisam de CRLF no Windows
+*.bat    eol=crlf
+
+# Arquivos binários — nunca converter
+*.db     binary
+*.exe    binary
+*.png    binary
+*.jpg    binary
+*.ico    binary
