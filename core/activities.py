@@ -7,15 +7,15 @@ from core.database import get_connection
 from datetime import datetime
 
 
-def criar_atividade(titulo, descricao, tipo, data_inicio, data_fim, local, responsavel_id, funcao_alvo=None):
+def criar_atividade(titulo, descricao, tipo, data_inicio, data_fim, local, responsavel_id, funcao_alvo=None, grupo_alvo=None):
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
         cursor.execute('''
-            INSERT INTO atividades (titulo, descricao, tipo, data_inicio, data_fim, local, responsavel_id, funcao_alvo)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (titulo, descricao, tipo, data_inicio, data_fim, local, responsavel_id, funcao_alvo))
+            INSERT INTO atividades (titulo, descricao, tipo, data_inicio, data_fim, local, responsavel_id, funcao_alvo, grupo_alvo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (titulo, descricao, tipo, data_inicio, data_fim, local, responsavel_id, funcao_alvo, grupo_alvo))
         conn.commit()
         atividade_id = cursor.lastrowid
         conn.close()
@@ -57,7 +57,7 @@ def obter_atividade(atividade_id):
     return atividade
 
 
-def atualizar_atividade(atividade_id, titulo, descricao, tipo, data_inicio, data_fim, local, responsavel_id, status, funcao_alvo=None):
+def atualizar_atividade(atividade_id, titulo, descricao, tipo, data_inicio, data_fim, local, responsavel_id, status, funcao_alvo=None, grupo_alvo=None):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -66,9 +66,9 @@ def atualizar_atividade(atividade_id, titulo, descricao, tipo, data_inicio, data
             UPDATE atividades
             SET titulo = ?, descricao = ?, tipo = ?, data_inicio = ?,
                 data_fim = ?, local = ?, responsavel_id = ?, status = ?,
-                funcao_alvo = ?, atualizado_em = CURRENT_TIMESTAMP
+                funcao_alvo = ?, grupo_alvo = ?, atualizado_em = CURRENT_TIMESTAMP
             WHERE id = ?
-        ''', (titulo, descricao, tipo, data_inicio, data_fim, local, responsavel_id, status, funcao_alvo, atividade_id))
+        ''', (titulo, descricao, tipo, data_inicio, data_fim, local, responsavel_id, status, funcao_alvo, grupo_alvo, atividade_id))
         conn.commit()
         conn.close()
         return True

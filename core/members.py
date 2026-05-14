@@ -19,6 +19,12 @@ FUNCOES = [
 
 STATUS = ["Ativo", "Afastado", "Visitante"]
 
+GRUPOS = [
+    "Grupo de Mulheres",
+    "Grupo dos Homens",
+    "Grupo de Casais",
+]
+
 MESES = [
     "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
@@ -27,18 +33,18 @@ MESES = [
 
 def criar_membro(nome, funcao, status="Ativo", aniversario_dia=None,
                  aniversario_mes=None, telefone=None, email=None,
-                 observacoes=None):
+                 observacoes=None, grupo=None):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
         """
         INSERT INTO membros
             (nome, funcao, status, aniversario_dia, aniversario_mes,
-             telefone, email, observacoes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             telefone, email, observacoes, grupo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (nome, funcao, status, aniversario_dia, aniversario_mes,
-         telefone or None, email or None, observacoes or None),
+         telefone or None, email or None, observacoes or None, grupo or None),
     )
     conn.commit()
     new_id = cursor.lastrowid
@@ -75,18 +81,19 @@ def obter_membro(membro_id):
 
 def atualizar_membro(membro_id, nome, funcao, status, aniversario_dia=None,
                      aniversario_mes=None, telefone=None, email=None,
-                     observacoes=None):
+                     observacoes=None, grupo=None):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
         """
         UPDATE membros
         SET nome=?, funcao=?, status=?, aniversario_dia=?, aniversario_mes=?,
-            telefone=?, email=?, observacoes=?
+            telefone=?, email=?, observacoes=?, grupo=?
         WHERE id=?
         """,
         (nome, funcao, status, aniversario_dia, aniversario_mes,
-         telefone or None, email or None, observacoes or None, membro_id),
+         telefone or None, email or None, observacoes or None,
+         grupo or None, membro_id),
     )
     conn.commit()
     conn.close()

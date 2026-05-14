@@ -97,6 +97,18 @@ def init_database():
     except Exception:
         pass  # coluna já existe
 
+    # Migração: adiciona grupo_alvo à tabela atividades
+    try:
+        cursor.execute("ALTER TABLE atividades ADD COLUMN grupo_alvo TEXT DEFAULT NULL")
+    except Exception:
+        pass  # coluna já existe
+
+    # Migração: adiciona grupo à tabela membros
+    try:
+        cursor.execute("ALTER TABLE membros ADD COLUMN grupo TEXT DEFAULT NULL")
+    except Exception:
+        pass  # coluna já existe
+
     # Migração: bancos antigos têm coluna 'ativo' em vez de 'status'
     try:
         cursor.execute("ALTER TABLE membros ADD COLUMN status TEXT DEFAULT 'Ativo'")
