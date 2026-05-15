@@ -87,7 +87,9 @@ def init_database():
             funcao TEXT NOT NULL DEFAULT 'Membro',
             status TEXT NOT NULL DEFAULT 'Ativo',
             observacoes TEXT,
-            data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            grupo TEXT DEFAULT NULL,
+            grupo_casais   INTEGER DEFAULT 0
         )
     ''')
 
@@ -96,6 +98,35 @@ def init_database():
         cursor.execute("ALTER TABLE atividades ADD COLUMN funcao_alvo TEXT DEFAULT NULL")
     except Exception:
         pass  # coluna já existe
+
+    # Migração: adiciona grupo_alvo à tabela atividades
+    try:
+        cursor.execute("ALTER TABLE atividades ADD COLUMN grupo_alvo TEXT DEFAULT NULL")
+    except Exception:
+        pass  # coluna já existe
+
+    # Migração: adiciona grupo à tabela membros
+    try:
+        cursor.execute("ALTER TABLE membros ADD COLUMN grupo TEXT DEFAULT NULL")
+    except Exception:
+        pass  # coluna já existe
+
+    # MIGRAÇÃO v1.2.0 — 15/05/2026
+    # Motivo: separar participação no Grupo de Casais em coluna própria, pois um membro
+    #         pode pertencer a um grupo de gênero E ao Grupo de Casais simultaneamente.
+    # Impacto: ADD COLUMN seguro; UPDATE move membros de 'Grupo de Casais' para a nova coluna.
+    # Rollback: não aplicável (ADD COLUMN irreversível sem recriar tabela); restaurar backup.
+    try:
+        cursor.execute("ALTER TABLE membros ADD COLUMN grupo_casais INTEGER DEFAULT 0")
+    except Exception:
+        pass  # coluna já existe
+    # UPDATE separado: idempotente — re-executa com segurança se ADD falhou em execução anterior
+    try:
+        cursor.execute(
+            "UPDATE membros SET grupo_casais = 1, grupo = NULL WHERE grupo = 'Grupo de Casais'"
+        )
+    except Exception:
+        pass
 
     # Migração: bancos antigos têm coluna 'ativo' em vez de 'status'
     try:

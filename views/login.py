@@ -462,7 +462,7 @@ class LoginWindow:
         shell.register("home",       lambda c: self._render_home(c, shell))
         shell.register("membros",    lambda c: self._render_members(c, shell))
         shell.register("atividades", lambda c: self._render_activities(c, shell))
-        shell.register("whatsapp",   lambda c: self._render_whatsapp(c))
+        shell.register("whatsapp",   lambda c: self._render_whatsapp(c, shell))
         shell.register("usuarios",   lambda c: self._render_users(c, shell))
         shell.register("relatorios", lambda c: self._render_reports(c))
 
@@ -506,14 +506,16 @@ class LoginWindow:
                 hora_str = f"{hi} → {hf}" if hf else hi
             status = _STATUS_MAP.get(a["status"], a["status"])
             mapped_events.append({
-                "id":     a["id"],
-                "dia":    dt.day if dt else 1,
-                "mes":    _MESES_SHORT[dt.month - 1] if dt else "---",
-                "hora":   hora_str,
-                "titulo": a["titulo"],
-                "local":  a["local"] or "",
-                "resp":   a["nome_responsavel"] or "—",
-                "status": status,
+                "id":          a["id"],
+                "dia":         dt.day if dt else 1,
+                "mes":         _MESES_SHORT[dt.month - 1] if dt else "---",
+                "hora":        hora_str,
+                "titulo":      a["titulo"],
+                "local":       a["local"] or "",
+                "resp":        a["nome_responsavel"] or "—",
+                "status":      status,
+                "funcao_alvo": a["funcao_alvo"] if "funcao_alvo" in a.keys() else None,
+                "grupo_alvo":  a["grupo_alvo"]  if "grupo_alvo"  in a.keys() else None,
             })
 
         mapped_bdays = []
@@ -521,11 +523,12 @@ class LoginWindow:
             funcao = m["funcao"] or "Membro"
             mes_idx = (m["aniversario_mes"] or now.month) - 1
             mapped_bdays.append({
-                "nome":   m["nome"],
-                "funcao": funcao,
-                "dia":    m["aniversario_dia"] or 0,
-                "mes":    _MESES_SHORT[mes_idx],
-                "color":  _FUNCAO_COLOR.get(funcao, _MEMBER_COLORS[i % len(_MEMBER_COLORS)]),
+                "nome":     m["nome"],
+                "funcao":   funcao,
+                "dia":      m["aniversario_dia"] or 0,
+                "mes":      _MESES_SHORT[mes_idx],
+                "color":    _FUNCAO_COLOR.get(funcao, _MEMBER_COLORS[i % len(_MEMBER_COLORS)]),
+                "telefone": m["telefone"] or "",
             })
 
         shell_user = {
@@ -555,6 +558,7 @@ class LoginWindow:
                 "send_whatsapp":   lambda: shell.navigate("whatsapp"),
                 "open_reports":    lambda: shell.navigate("relatorios"),
                 "view_activities": lambda: shell.navigate("atividades"),
+                "send_birthday":   lambda b: self._open_whatsapp_for_birthday(b, shell),
             },
         )
 
@@ -575,6 +579,7 @@ class LoginWindow:
                 "niver_dia": m["aniversario_dia"],
                 "niver_mes": str(m["aniversario_mes"]) if m["aniversario_mes"] else None,
                 "color":     color,
+                "grupo":     m["grupo"] if m["grupo"] else None,
             })
         root = self.root
         refresh = lambda: shell.navigate("membros")
@@ -607,6 +612,10 @@ class LoginWindow:
                 fa = a["funcao_alvo"]
             except (IndexError, KeyError):
                 fa = None
+            try:
+                ga = a["grupo_alvo"]
+            except (IndexError, KeyError):
+                ga = None
             mapped.append({
                 "id":          a["id"],
                 "dia":         dt.day if dt else 1,
@@ -620,6 +629,7 @@ class LoginWindow:
                 "resp":        a["nome_responsavel"] or "—",
                 "status":      status,
                 "funcao_alvo": fa,
+                "grupo_alvo":  ga,
             })
         root    = self.root
         uid     = self.current_user["id"]
@@ -640,17 +650,57 @@ class LoginWindow:
         self._whatsapp_prefill = event
         shell.navigate("whatsapp")
 
-    def _render_whatsapp(self, parent):
+    def _open_whatsapp_for_birthday(self, bday, shell):
+        self._whatsapp_prefill = {
+            "type":     "birthday",
+            "nome":     bday["nome"],
+            "telefone": bday.get("telefone", ""),
+            "dia":      bday["dia"],
+            "mes":      bday["mes"],
+        }
+        shell.navigate("whatsapp")
+
+    def _render_whatsapp(self, parent, shell):
         connected = False
         try:
             from core.whatsapp import status_conexao
-            st = status_conexao()
-            connected = isinstance(st, dict) and st.get("status") == "WORKING"
+            st, _ = status_conexao()
+            connected = (st == "open")
         except Exception:
             pass
+
         prefill = getattr(self, "_whatsapp_prefill", None)
         self._whatsapp_prefill = None
-        whatsapp.render(parent, connected=connected, prefill=prefill)
+
+        root = self.root
+
+        def _qr_code():
+            from design.pages.whatsapp import open_qr_modal
+            open_qr_modal(root)
+
+        def _verificar():
+            shell.navigate("whatsapp")
+
+        def _toggle():
+            try:
+                from core.whatsapp import criar_instancia, desconectar_sessao
+                if connected:
+                    desconectar_sessao()
+                else:
+                    criar_instancia()
+            except Exception as ex:
+                from tkinter import messagebox
+                messagebox.showerror("Erro", str(ex), parent=root)
+            shell.navigate("whatsapp")
+
+        callbacks = {
+            "qr_code":          _qr_code,
+            "verificar":        _verificar,
+            "toggle_connection": _toggle,
+        }
+
+        whatsapp.render(parent, connected=connected,
+                        callbacks=callbacks, prefill=prefill)
 
     def _render_users(self, parent, shell):
         from core.users import listar_usuarios
@@ -691,18 +741,27 @@ class LoginWindow:
             data["visitantes"] = visitantes
 
             funcao_counts = {}
+            grupo_counts  = {}
             for m in listar_membros():
                 f = m["funcao"] or "Membro"
                 funcao_counts[f] = funcao_counts.get(f, 0) + 1
+                g = m["grupo"]
+                if g:
+                    grupo_counts[g] = grupo_counts.get(g, 0) + 1
+                if m["grupo_casais"]:
+                    grupo_counts["Grupo de Casais"] = grupo_counts.get("Grupo de Casais", 0) + 1
             data["funcao_counts"] = funcao_counts
+            data["grupo_counts"]  = grupo_counts
 
             raw_at = listar_atividades()
             data["total_events"] = len(raw_at)
             data["planejadas"]   = sum(1 for a in raw_at if a["status"] == "Planejado")
             data["realizadas"]   = sum(1 for a in raw_at if a["status"] == "Concluído")
             data["canceladas"]   = sum(1 for a in raw_at if a["status"] == "Cancelado")
-        except Exception:
-            pass
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            data.setdefault("_error", str(e))
         reports.render(parent, data=data)
 
     # ── AUXILIARES ─────────────────────────────────────────────────

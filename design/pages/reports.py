@@ -113,7 +113,19 @@ def _render_membros(parent, data):
         bar_data = [("Sem dados", 0, COLORS["accent"])]
 
     bar_chart(parent, title="Distribuição por função",
-              data=bar_data).pack(fill=tk.X)
+              data=bar_data).pack(fill=tk.X, pady=(0, SPACING[4]))
+
+    grupo_counts = data.get("grupo_counts", {})
+    if grupo_counts:
+        grupo_colors = [COLORS["purple"], COLORS["accent2"], COLORS["warning"]]
+        grupo_data = [
+            (g, c, grupo_colors[i % len(grupo_colors)])
+            for i, (g, c) in enumerate(
+                sorted(grupo_counts.items(), key=lambda x: -x[1])
+            )
+        ]
+        bar_chart(parent, title="Distribuição por grupo",
+                  data=grupo_data).pack(fill=tk.X)
 
 
 # ─── ABA: ANIVERSARIANTES ─────────────────────────────────────────
@@ -159,6 +171,7 @@ def _render_aniversariantes(parent):
         for w in list_box.winfo_children():
             w.destroy()
 
+        _load_error = None
         try:
             from core.members import aniversariantes_do_mes
             raw = list(aniversariantes_do_mes(state["active"] + 1))
@@ -167,8 +180,9 @@ def _render_aniversariantes(parent):
                  "funcao": r["funcao"] or "Membro", "color": "#667eea"}
                 for r in raw
             ]
-        except Exception:
+        except Exception as _e:
             data_list = []
+            _load_error = str(_e)
 
         mes_nome = _MESES[state["active"]]
 
@@ -180,6 +194,14 @@ def _render_aniversariantes(parent):
                         highlightbackground=COLORS["divider"],
                         highlightthickness=1)
         card.pack(fill=tk.X)
+
+        if _load_error:
+            tk.Label(card,
+                     text=f"Não foi possível carregar os dados. ({_load_error})",
+                     font=FONTS["body"],
+                     bg=COLORS["bg_card"],
+                     fg=COLORS["danger"]).pack(pady=SPACING[6])
+            return
 
         if not data_list:
             tk.Label(card,
@@ -267,70 +289,23 @@ def _render_eventos(parent, data):
 
 # ─── ABA: CRESCIMENTO ─────────────────────────────────────────────
 def _render_crescimento(parent):
+    """Placeholder — dados reais de historico de crescimento serao implementados em release futura."""
     bg = parent["bg"]
-    row = tk.Frame(parent, bg=bg)
-    row.pack(fill=tk.X, pady=(0, SPACING[6]))
-    for c in range(3):
-        row.columnconfigure(c, weight=1, uniform="cr")
+    card = tk.Frame(parent, bg=COLORS["bg_card"],
+                    highlightbackground=COLORS["divider"],
+                    highlightthickness=1)
+    card.pack(fill=tk.X, pady=(SPACING[6], 0))
 
-    stats = [
-        ("+28",  "Crescimento no ano",  "Membros adicionados líquido", COLORS["success"]),
-        ("+12",  "Novos este trimestre", "Abr → Mai",                  COLORS["accent"]),
-        ("2.3%", "Taxa mensal média",   "Crescimento composto",        COLORS["accent2"]),
-    ]
-    for i, (v, l, s, c) in enumerate(stats):
-        cell = tk.Frame(row, bg=bg)
-        cell.grid(row=0, column=i, sticky="nsew",
-                  padx=(0 if i == 0 else SPACING[1],
-                        0 if i == 2 else SPACING[1]))
-        big_stat(cell, value=v, label=l, sub=s, color=c).pack(fill=tk.BOTH, expand=True)
+    inner = tk.Frame(card, bg=COLORS["bg_card"])
+    inner.pack(pady=SPACING[10], padx=SPACING[8])
 
-    section_label(parent, text="Membros ao longo do tempo").pack(
-        fill=tk.X, anchor=tk.W, pady=(0, SPACING[3]))
-
-    chart_card = tk.Frame(parent, bg=COLORS["bg_card"],
-                          highlightbackground=COLORS["divider"],
-                          highlightthickness=1)
-    chart_card.pack(fill=tk.X)
-    _draw_growth_chart(chart_card)
-
-
-def _draw_growth_chart(parent):
-    data = [
-        ("Jun", 96),  ("Jul", 99),  ("Ago", 101), ("Set", 104),
-        ("Out", 108), ("Nov", 110), ("Dez", 112), ("Jan", 115),
-        ("Fev", 118), ("Mar", 120), ("Abr", 122), ("Mai", 124),
-    ]
-    width   = 940
-    height  = 240
-    pad_x   = 24
-    pad_y   = 32
-    bar_gap = 8
-
-    cv = tk.Canvas(parent, width=width, height=height,
-                   bg=COLORS["bg_card"], highlightthickness=0, bd=0)
-    cv.pack(padx=SPACING[5], pady=SPACING[5])
-
-    chart_w = width  - pad_x * 2
-    chart_h = height - pad_y * 2
-    bar_w   = (chart_w - bar_gap * (len(data) - 1)) / len(data)
-    max_v   = max(v for _, v in data)
-    min_v   = min(v for _, v in data)
-    span    = (max_v - min_v) + 4
-
-    cv.create_line(pad_x, pad_y + chart_h, pad_x + chart_w, pad_y + chart_h,
-                   fill=COLORS["divider"], width=1)
-
-    for i, (label, value) in enumerate(data):
-        h  = ((value - min_v + 4) / span) * chart_h
-        x0 = pad_x + i * (bar_w + bar_gap)
-        x1 = x0 + bar_w
-        y1 = pad_y + chart_h
-        y0 = y1 - h
-        cv.create_rectangle(x0, y0, x1, y1, fill=COLORS["accent"], outline="")
-        cv.create_text((x0 + x1) / 2, y0 - 10,
-                       text=str(value), font=FONTS["tiny_bold"],
-                       fill=COLORS["text_muted"])
-        cv.create_text((x0 + x1) / 2, y1 + 14,
-                       text=label, font=FONTS["tiny_bold"],
-                       fill=COLORS["text_muted"])
+    tk.Label(inner, text="📈", font=(FONTS["body"][0], 36),
+             bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack()
+    tk.Label(inner, text="Relatório de Crescimento",
+             font=FONTS["subtitle"], bg=COLORS["bg_card"],
+             fg=COLORS["text"]).pack(pady=(SPACING[3], SPACING[1]))
+    tk.Label(inner,
+             text="Esta aba exibirá o histórico de crescimento da igreja\n"
+                  "ao longo dos últimos 12 meses. Em desenvolvimento.",
+             font=FONTS["body"], bg=COLORS["bg_card"],
+             fg=COLORS["text_muted"], justify=tk.CENTER).pack()
