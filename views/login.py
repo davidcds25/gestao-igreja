@@ -523,11 +523,12 @@ class LoginWindow:
             funcao = m["funcao"] or "Membro"
             mes_idx = (m["aniversario_mes"] or now.month) - 1
             mapped_bdays.append({
-                "nome":   m["nome"],
-                "funcao": funcao,
-                "dia":    m["aniversario_dia"] or 0,
-                "mes":    _MESES_SHORT[mes_idx],
-                "color":  _FUNCAO_COLOR.get(funcao, _MEMBER_COLORS[i % len(_MEMBER_COLORS)]),
+                "nome":     m["nome"],
+                "funcao":   funcao,
+                "dia":      m["aniversario_dia"] or 0,
+                "mes":      _MESES_SHORT[mes_idx],
+                "color":    _FUNCAO_COLOR.get(funcao, _MEMBER_COLORS[i % len(_MEMBER_COLORS)]),
+                "telefone": m["telefone"] or "",
             })
 
         shell_user = {
@@ -557,6 +558,7 @@ class LoginWindow:
                 "send_whatsapp":   lambda: shell.navigate("whatsapp"),
                 "open_reports":    lambda: shell.navigate("relatorios"),
                 "view_activities": lambda: shell.navigate("atividades"),
+                "send_birthday":   lambda b: self._open_whatsapp_for_birthday(b, shell),
             },
         )
 
@@ -648,6 +650,16 @@ class LoginWindow:
         self._whatsapp_prefill = event
         shell.navigate("whatsapp")
 
+    def _open_whatsapp_for_birthday(self, bday, shell):
+        self._whatsapp_prefill = {
+            "type":     "birthday",
+            "nome":     bday["nome"],
+            "telefone": bday.get("telefone", ""),
+            "dia":      bday["dia"],
+            "mes":      bday["mes"],
+        }
+        shell.navigate("whatsapp")
+
     def _render_whatsapp(self, parent, shell):
         connected = False
         try:
@@ -736,6 +748,8 @@ class LoginWindow:
                 g = m["grupo"]
                 if g:
                     grupo_counts[g] = grupo_counts.get(g, 0) + 1
+                if m["grupo_casais"]:
+                    grupo_counts["Grupo de Casais"] = grupo_counts.get("Grupo de Casais", 0) + 1
             data["funcao_counts"] = funcao_counts
             data["grupo_counts"]  = grupo_counts
 

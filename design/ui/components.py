@@ -1011,22 +1011,6 @@ def connection_card(parent, *, connected: bool, session_info: str = "",
     return wrap
 
 
-def skeleton_card(parent, *, height=110):
-    """Card 'fantasma' para mostrar antes do conteúdo real carregar.
-    Coloque 3 desses enquanto faz a query do banco."""
-    bg = COLORS["bg_card"]
-    wrap = tk.Frame(parent, bg=bg,
-                    highlightbackground=COLORS["divider"],
-                    highlightthickness=1,
-                    height=height)
-    wrap.pack_propagate(False)
-    # 3 linhas placeholder
-    for w_px, top in [(220, 18), (140, 46), (180, 70)]:
-        line = tk.Frame(wrap, bg=COLORS["divider"], height=12, width=w_px)
-        line.place(x=SPACING[4], y=top)
-    return wrap
-
-
 # ══════════════════════════════════════════════════════════════════════
 # 12. PAGE CONTAINER — padding consistente em TODAS as views
 # ══════════════════════════════════════════════════════════════════════

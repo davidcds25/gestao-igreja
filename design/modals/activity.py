@@ -115,7 +115,7 @@ class ActivityModal(StyledModal):
         from core.members import FUNCOES as _FUNCOES, GRUPOS as _GRUPOS
         _fa_options = ["(nenhum)", "Toda a Igreja"] + list(_FUNCOES)
         _fa_inicial = (at.get("funcao_alvo") or "(nenhum)") if at else "(nenhum)"
-        _ga_options = ["(nenhum)"] + list(_GRUPOS)
+        _ga_options = ["(nenhum)"] + list(_GRUPOS) + ["Grupo de Casais"]
         _ga_inicial = (at.get("grupo_alvo") or "(nenhum)") if at else "(nenhum)"
 
         # Em edição: mostra o status atual como informação (somente leitura).

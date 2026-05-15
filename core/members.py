@@ -22,7 +22,8 @@ STATUS = ["Ativo", "Afastado", "Visitante"]
 GRUPOS = [
     "Grupo de Mulheres",
     "Grupo dos Homens",
-    "Grupo de Casais",
+    "Grupo de Jovens",
+    "Grupo Infantil",
 ]
 
 MESES = [
@@ -33,18 +34,19 @@ MESES = [
 
 def criar_membro(nome, funcao, status="Ativo", aniversario_dia=None,
                  aniversario_mes=None, telefone=None, email=None,
-                 observacoes=None, grupo=None):
+                 observacoes=None, grupo=None, grupo_casais=False):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
         """
         INSERT INTO membros
             (nome, funcao, status, aniversario_dia, aniversario_mes,
-             telefone, email, observacoes, grupo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             telefone, email, observacoes, grupo, grupo_casais)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (nome, funcao, status, aniversario_dia, aniversario_mes,
-         telefone or None, email or None, observacoes or None, grupo or None),
+         telefone or None, email or None, observacoes or None,
+         grupo or None, 1 if grupo_casais else 0),
     )
     conn.commit()
     new_id = cursor.lastrowid
@@ -52,7 +54,7 @@ def criar_membro(nome, funcao, status="Ativo", aniversario_dia=None,
     return new_id
 
 
-def listar_membros(status=None, funcao=None):
+def listar_membros(status=None, funcao=None, grupo=None, grupo_casais=None):
     conn = get_connection()
     cursor = conn.cursor()
     query = "SELECT * FROM membros WHERE 1=1"
@@ -63,6 +65,12 @@ def listar_membros(status=None, funcao=None):
     if funcao:
         query += " AND funcao = ?"
         params.append(funcao)
+    if grupo is not None:
+        query += " AND grupo = ?"
+        params.append(grupo)
+    if grupo_casais is not None:
+        query += " AND grupo_casais = ?"
+        params.append(1 if grupo_casais else 0)
     query += " ORDER BY nome COLLATE NOCASE"
     cursor.execute(query, params)
     rows = cursor.fetchall()
@@ -81,19 +89,19 @@ def obter_membro(membro_id):
 
 def atualizar_membro(membro_id, nome, funcao, status, aniversario_dia=None,
                      aniversario_mes=None, telefone=None, email=None,
-                     observacoes=None, grupo=None):
+                     observacoes=None, grupo=None, grupo_casais=False):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
         """
         UPDATE membros
         SET nome=?, funcao=?, status=?, aniversario_dia=?, aniversario_mes=?,
-            telefone=?, email=?, observacoes=?, grupo=?
+            telefone=?, email=?, observacoes=?, grupo=?, grupo_casais=?
         WHERE id=?
         """,
         (nome, funcao, status, aniversario_dia, aniversario_mes,
          telefone or None, email or None, observacoes or None,
-         grupo or None, membro_id),
+         grupo or None, 1 if grupo_casais else 0, membro_id),
     )
     conn.commit()
     conn.close()

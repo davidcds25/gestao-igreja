@@ -106,16 +106,24 @@ class MemberModal(StyledModal):
         def _wheel(e):
             canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
 
-        canvas.bind_all("<MouseWheel>", _wheel)
+        def _register(e=None):
+            canvas.bind_all("<MouseWheel>", _wheel)
 
-        def _on_destroy(e):
-            if e.widget is self:
-                try:
-                    self.unbind_all("<MouseWheel>")
-                except Exception:
-                    pass
+        def _unregister(e=None):
+            try:
+                canvas.unbind_all("<MouseWheel>")
+            except Exception:
+                pass
 
-        self.bind("<Destroy>", _on_destroy)
+        # Registra imediatamente e re-registra ao entrar no modal
+        # (page_container dispara <Leave> → unbind_all ao abrir o Toplevel)
+        _register()
+        self.bind("<Enter>",   _register)
+        canvas.bind("<Enter>", _register)
+        inner.bind("<Enter>",  _register)
+
+        canvas.bind("<Destroy>", lambda e: _unregister())
+        self.bind("<Destroy>",   lambda e: _unregister())
 
         self._build_form(inner)
 
@@ -197,11 +205,32 @@ class MemberModal(StyledModal):
         f_grupo.grid(row=0, column=1, sticky="nsew")
         tk.Label(f_grupo, text="Grupo  (opcional)", font=FONTS["tiny_bold"],
                  bg=bg, fg=COLORS["text_muted"]).pack(anchor=tk.W, pady=(0, 2))
-        _grupo_opts = ["(nenhum)"] + GRUPOS
+        _grupo_opts = ["(nenhum)"] + list(GRUPOS)
         _grupo_init = (m.get("grupo") or "(nenhum)") if m else "(nenhum)"
         self._grupo_var = tk.StringVar(value=_grupo_init)
         ttk.Combobox(f_grupo, textvariable=self._grupo_var, values=_grupo_opts,
                      state="readonly", font=FONTS["body"]).pack(fill=tk.X, ipady=5)
+
+        # Checkbox Grupo de Casais — pode combinar com qualquer grupo acima
+        # O checkbox e o label ficam separados: fg escuro no checkbox para o
+        # checkmark ficar visível sobre o fundo branco (selectcolor="white").
+        _casais_init = bool(m.get("grupo_casais")) if m else False
+        self._casais_var = tk.BooleanVar(value=_casais_init)
+        casais_row = tk.Frame(two_col, bg=bg)
+        casais_row.grid(row=1, column=1, sticky="w", pady=(S[2], 0))
+        tk.Checkbutton(
+            casais_row,
+            variable=self._casais_var,
+            text="",
+            bg=bg, fg=COLORS["bg_dark"],   # fg escuro → checkmark visível no branco
+            selectcolor="white",
+            activebackground=bg,
+        ).pack(side=tk.LEFT)
+        tk.Label(
+            casais_row, text="Grupo de Casais",
+            bg=bg, fg=COLORS["text"],
+            font=FONTS["body"],
+        ).pack(side=tk.LEFT)
 
         divider_line(p, soft=True).pack(fill=tk.X, pady=(0, S[3]))
 
@@ -355,10 +384,11 @@ class MemberModal(StyledModal):
             messagebox.showwarning("Atencao", "O nome e obrigatorio.", parent=self)
             return
 
-        funcao = self._funcao_var.get()
-        status = self._status_var.get()
-        grupo  = self._grupo_var.get()
-        grupo  = None if grupo == "(nenhum)" else grupo
+        funcao       = self._funcao_var.get()
+        status       = self._status_var.get()
+        grupo        = self._grupo_var.get()
+        grupo        = None if grupo == "(nenhum)" else grupo
+        grupo_casais = self._casais_var.get()
 
         dia_str  = self._dia_var.get().strip()
         mes_str  = self._mes_var.get()
@@ -381,11 +411,12 @@ class MemberModal(StyledModal):
         try:
             if self._editing:
                 atualizar_membro(self._member_id, nome, funcao, status,
-                                 aniv_dia, aniv_mes, tel, email, obs, grupo)
+                                 aniv_dia, aniv_mes, tel, email, obs,
+                                 grupo, grupo_casais)
                 messagebox.showinfo("Sucesso", "Membro atualizado!", parent=self)
             else:
                 criar_membro(nome, funcao, status, aniv_dia, aniv_mes,
-                             tel, email, obs, grupo)
+                             tel, email, obs, grupo, grupo_casais)
                 messagebox.showinfo("Sucesso", "Membro cadastrado!", parent=self)
 
             self.destroy()
