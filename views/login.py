@@ -462,7 +462,7 @@ class LoginWindow:
         shell.register("home",       lambda c: self._render_home(c, shell))
         shell.register("membros",    lambda c: self._render_members(c, shell))
         shell.register("atividades", lambda c: self._render_activities(c, shell))
-        shell.register("whatsapp",   lambda c: self._render_whatsapp(c))
+        shell.register("whatsapp",   lambda c: self._render_whatsapp(c, shell))
         shell.register("usuarios",   lambda c: self._render_users(c, shell))
         shell.register("relatorios", lambda c: self._render_reports(c))
 
@@ -514,8 +514,8 @@ class LoginWindow:
                 "local":       a["local"] or "",
                 "resp":        a["nome_responsavel"] or "—",
                 "status":      status,
-                "funcao_alvo": a.get("funcao_alvo"),
-                "grupo_alvo":  a.get("grupo_alvo"),
+                "funcao_alvo": a["funcao_alvo"] if "funcao_alvo" in a.keys() else None,
+                "grupo_alvo":  a["grupo_alvo"]  if "grupo_alvo"  in a.keys() else None,
             })
 
         mapped_bdays = []
@@ -648,17 +648,47 @@ class LoginWindow:
         self._whatsapp_prefill = event
         shell.navigate("whatsapp")
 
-    def _render_whatsapp(self, parent):
+    def _render_whatsapp(self, parent, shell):
         connected = False
         try:
             from core.whatsapp import status_conexao
-            st = status_conexao()
-            connected = isinstance(st, dict) and st.get("status") == "WORKING"
+            st, _ = status_conexao()
+            connected = (st == "open")
         except Exception:
             pass
+
         prefill = getattr(self, "_whatsapp_prefill", None)
         self._whatsapp_prefill = None
-        whatsapp.render(parent, connected=connected, prefill=prefill)
+
+        root = self.root
+
+        def _qr_code():
+            from design.pages.whatsapp import open_qr_modal
+            open_qr_modal(root)
+
+        def _verificar():
+            shell.navigate("whatsapp")
+
+        def _toggle():
+            try:
+                from core.whatsapp import criar_instancia, desconectar_sessao
+                if connected:
+                    desconectar_sessao()
+                else:
+                    criar_instancia()
+            except Exception as ex:
+                from tkinter import messagebox
+                messagebox.showerror("Erro", str(ex), parent=root)
+            shell.navigate("whatsapp")
+
+        callbacks = {
+            "qr_code":          _qr_code,
+            "verificar":        _verificar,
+            "toggle_connection": _toggle,
+        }
+
+        whatsapp.render(parent, connected=connected,
+                        callbacks=callbacks, prefill=prefill)
 
     def _render_users(self, parent, shell):
         from core.users import listar_usuarios

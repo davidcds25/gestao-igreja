@@ -1060,6 +1060,14 @@ def page_container(parent):
     inner.bind("<Configure>",
                lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 
+    # Mouse wheel scroll — ativa quando o cursor entra na área do canvas
+    def _scroll(e):
+        canvas.yview_scroll(-1 * (e.delta // 120), "units")
+
+    canvas.bind("<Enter>",   lambda e: canvas.bind_all("<MouseWheel>", _scroll))
+    canvas.bind("<Leave>",   lambda e: canvas.unbind_all("<MouseWheel>"))
+    canvas.bind("<Destroy>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
     # padding interno
     content = tk.Frame(inner, bg=COLORS["bg_dark"])
     content.pack(fill=tk.BOTH, expand=True,
