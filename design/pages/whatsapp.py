@@ -262,15 +262,18 @@ def render(parent, *, connected: bool = False, callbacks=None, prefill=None):
     form_container = tk.Frame(content, bg=COLORS["bg_dark"])
     form_container.pack(fill=tk.BOTH, expand=True)
 
-    default_tab = "lote" if prefill else "individual"
+    is_birthday = prefill and prefill.get("type") == "birthday"
+    default_tab = "individual" if is_birthday else ("lote" if prefill else "individual")
 
     def _render_form(tab):
         for w in form_container.winfo_children():
             w.destroy()
         if tab == "individual":
-            _render_individual(form_container, connected)
+            _render_individual(form_container, connected,
+                               prefill=prefill if is_birthday else None)
         else:
-            _render_lote(form_container, connected, prefill=prefill)
+            _render_lote(form_container, connected,
+                         prefill=prefill if not is_birthday else None)
 
     tabs_widget = build_tabs(
         tab_row,
@@ -301,7 +304,7 @@ def _root_of(widget):
 
 # ─── ABA: INDIVIDUAL ──────────────────────────────────────────────
 
-def _render_individual(parent, connected):
+def _render_individual(parent, connected, prefill=None):
     # Carrega membros ativos com telefone
     membros_com_tel = []
     try:
@@ -343,12 +346,37 @@ def _render_individual(parent, connected):
 
     sel_membro.bind("<<ComboboxSelected>>", _on_membro_sel)
 
-    msg_template = (
-        "Olá {nome}! A paz do Senhor! 🙏\n\n"
-        "Passando para lembrar você sobre as novidades da nossa comunidade.\n\n"
-        "Contamos com sua presença!\n"
-        "Deus abençoe! ✨"
-    )
+    if prefill and prefill.get("type") == "birthday":
+        nome_aniv = prefill.get("nome", "")
+        tel_aniv  = prefill.get("telefone", "")
+        hora_atual = datetime.now().hour
+        if hora_atual < 12:
+            saudacao = "Bom dia"
+        elif hora_atual < 18:
+            saudacao = "Boa tarde"
+        else:
+            saudacao = "Boa noite"
+        primeiro = nome_aniv.split()[0] if nome_aniv else "{nome}"
+        msg_template = (
+            f"{saudacao}, {primeiro}! 🎂\n\n"
+            f"Hoje é um dia muito especial — seu aniversário!\n\n"
+            f"Em nome de toda a nossa família de fé, queremos desejar a você "
+            f"um feliz aniversário cheio de bênçãos, saúde e alegria.\n\n"
+            f"Que Deus continue te abençoando e guardando! 🙏✨\n"
+            f"Feliz aniversário!"
+        )
+        if nome_aniv in nomes:
+            sel_membro._var.set(nome_aniv)
+        if tel_aniv:
+            phone_entry.delete(0, tk.END)
+            phone_entry.insert(0, tel_aniv)
+    else:
+        msg_template = (
+            "Olá {nome}! A paz do Senhor! 🙏\n\n"
+            "Passando para lembrar você sobre as novidades da nossa comunidade.\n\n"
+            "Contamos com sua presença!\n"
+            "Deus abençoe! ✨"
+        )
     msg_field = field(inner, label="Mensagem", hint="use {nome} para personalizar")
     msg_field.grid(row=1, column=0, columnspan=2, sticky="ew",
                    pady=(0, SPACING[3]))
@@ -366,10 +394,17 @@ def _render_individual(parent, connected):
              bg=COLORS["bg_card"], fg=hint_color).pack(side=tk.LEFT)
 
     _sending = {"v": False}
+    _birthday_nome = (prefill.get("nome", "") if prefill else "")
+    _birthday_tel  = (prefill.get("telefone", "") if prefill else "")
 
     def _limpar():
-        sel_membro._var.set("(selecionar membro)")
+        if _birthday_nome and _birthday_nome in nomes:
+            sel_membro._var.set(_birthday_nome)
+        else:
+            sel_membro._var.set("(selecionar membro)")
         phone_entry.delete(0, tk.END)
+        if _birthday_tel:
+            phone_entry.insert(0, _birthday_tel)
         msg_area.delete("1.0", tk.END)
         msg_area.insert("1.0", msg_template)
 
@@ -548,9 +583,11 @@ def _ver_lista_dialog(root, state, count_lbl, filtro_lbl):
 
 def _render_lote(parent, connected, prefill=None):
     try:
-        from core.members import GRUPOS as _GRUPOS_LOTE
+        from core.members import GRUPOS as _base_grupos
+        _GRUPOS_LOTE = list(_base_grupos) + ["Grupo de Casais"]
     except Exception:
-        _GRUPOS_LOTE = ["Grupo de Mulheres", "Grupo dos Homens", "Grupo de Casais"]
+        _GRUPOS_LOTE = ["Grupo de Mulheres", "Grupo dos Homens",
+                        "Grupo de Jovens", "Grupo Infantil", "Grupo de Casais"]
 
     wrap, inner = _form_wrap(parent)
     wrap.pack(fill=tk.X)
@@ -652,12 +689,11 @@ def _render_lote(parent, connected, prefill=None):
 
             elif tipo == "Grupo":
                 val = _val_widget["w"]._var.get() if _val_widget["w"] else ""
-                rows = listar_membros(status="Ativo")
-                # TODO: adicionar filtro grupo em listar_membros para evitar fetch completo
-                membros = [
-                    {k: r[k] for k in r.keys()} for r in rows
-                    if r["grupo"] == val
-                ]
+                if val == "Grupo de Casais":
+                    rows = listar_membros(status="Ativo", grupo_casais=True)
+                else:
+                    rows = listar_membros(status="Ativo", grupo=val)
+                membros = [{k: r[k] for k in r.keys()} for r in rows]
                 desc = f"Grupo: {val}"
 
             else:  # Aniversariantes

@@ -4,7 +4,6 @@ CRUD para atividades da igreja
 """
 
 from core.database import get_connection
-from datetime import datetime
 
 
 def criar_atividade(titulo, descricao, tipo, data_inicio, data_fim, local, responsavel_id, funcao_alvo=None, grupo_alvo=None):

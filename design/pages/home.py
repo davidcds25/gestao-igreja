@@ -196,11 +196,10 @@ def _build_upcoming_events(parent, events, on_view_all=None):
 # ─── BLOCO 5: ANIVERSARIANTES (com paginação) ────────────────────────
 def _build_birthdays(parent, birthdays, on_send_congrats=None):
     bg = parent["bg"]
+    today = datetime.now().day
     wrap = tk.Frame(parent, bg=bg)
-    section_label(wrap, text="Aniversariantes do mês",
-                  action="Enviar parabéns →",
-                  action_command=on_send_congrats).pack(fill=tk.X, anchor=tk.W,
-                                                    pady=(0, SPACING[3]))
+    section_label(wrap, text="Aniversariantes do mês").pack(
+        fill=tk.X, anchor=tk.W, pady=(0, SPACING[3]))
 
     container = tk.Frame(wrap, bg=COLORS["bg_card"],
                          highlightbackground=COLORS["divider"],
@@ -255,6 +254,11 @@ def _build_birthdays(parent, birthdays, on_send_congrats=None):
             tk.Label(info, text=b["funcao"], font=FONTS["small"],
                      bg=COLORS["bg_card"],
                      fg=COLORS["text_muted"]).pack(anchor=tk.W)
+
+            if b.get("dia") == today and on_send_congrats:
+                button(line, text="🎂 Parabéns", kind="secondary",
+                       command=lambda bday=b: on_send_congrats(bday)).pack(
+                           side=tk.LEFT, padx=(SPACING[2], 0))
 
             if i < len(page_items) - 1:
                 divider_line(container, soft=True).pack(fill=tk.X,
@@ -317,4 +321,4 @@ def render(parent, *, user=None, totals=None, callbacks=None,
     right = tk.Frame(cols, bg=COLORS["bg_dark"])
     right.grid(row=0, column=1, sticky="nsew")
     _build_birthdays(right, birthdays,
-                     on_send_congrats=callbacks.get("send_whatsapp")).pack(fill=tk.X)
+                     on_send_congrats=callbacks.get("send_birthday")).pack(fill=tk.X)
