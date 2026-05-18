@@ -237,3 +237,93 @@ def confirm_delete_user(root, *, usuario, on_confirm=None):
         if on_confirm:
             on_confirm()
         messagebox.showinfo("Excluído", f"Usuário '{usuario['nome']}' excluído com sucesso.", parent=root)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ORAÇÕES
+# ══════════════════════════════════════════════════════════════════════════
+
+def open_prayer_form(root, *, oracao_id=None, on_save=None):
+    from core.prayers import criar_oracao, atualizar_oracao, obter_oracao
+    from core.members import listar_membros
+    from design.modals import PrayerModal
+
+    mode    = "edit" if oracao_id else "new"
+    initial = {}
+    if oracao_id:
+        row = obter_oracao(oracao_id)
+        if row:
+            initial = dict(row)
+
+    # lista de membros ativos para o seletor de vínculo
+    try:
+        members = [(m["id"], m["nome"]) for m in listar_membros(status="Ativo")]
+    except Exception:
+        members = []
+
+    def _on_save(data):
+        try:
+            if mode == "new":
+                criar_oracao(
+                    solicitante_nome=data["solicitante_nome"],
+                    motivo=data["motivo"],
+                    categoria=data["categoria"],
+                    privacidade=data["privacidade"],
+                    status=data["status"],
+                    membro_id=data.get("membro_id"),
+                    contexto=data.get("contexto"),
+                    responsavel=data.get("responsavel"),
+                    observacoes=data.get("observacoes"),
+                    testemunho=data.get("testemunho"),
+                )
+            else:
+                atualizar_oracao(
+                    oracao_id,
+                    solicitante_nome=data["solicitante_nome"],
+                    motivo=data["motivo"],
+                    categoria=data["categoria"],
+                    privacidade=data["privacidade"],
+                    status=data["status"],
+                    membro_id=data.get("membro_id"),
+                    contexto=data.get("contexto"),
+                    responsavel=data.get("responsavel"),
+                    observacoes=data.get("observacoes"),
+                    testemunho=data.get("testemunho"),
+                )
+        except Exception as exc:
+            return str(exc)
+        if on_save:
+            on_save()
+        return None
+
+    def _on_delete():
+        from core.prayers import deletar_oracao
+        if oracao_id:
+            deletar_oracao(oracao_id)
+        if on_save:
+            on_save()
+
+    result = PrayerModal(root, mode=mode, initial=initial,
+                         members=members,
+                         on_save=_on_save,
+                         on_delete=_on_delete).show()
+
+    if result and not result.get("_deleted"):
+        label = "registrada" if mode == "new" else "atualizada"
+        messagebox.showinfo("Salvo", f"Oração {label} com sucesso.", parent=root)
+
+
+def confirm_delete_prayer(root, *, oracao_id, solicitante, on_confirm=None):
+    from core.prayers import deletar_oracao
+    from design.modals import ask_confirm
+    ok = ask_confirm(
+        root,
+        title="Excluir este pedido de oração?",
+        message=f"O registro de '{solicitante}' será removido permanentemente.",
+        confirm_label="Sim, excluir",
+        variant="danger",
+    )
+    if ok:
+        deletar_oracao(oracao_id)
+        if on_confirm:
+            on_confirm()

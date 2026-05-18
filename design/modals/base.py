@@ -296,7 +296,9 @@ def modal_input(parent, *, var, placeholder: str = "", icon: str = None,
                  bg=COLORS["input_bg"], fg=COLORS["text_muted"],
                  padx=10).pack(side=tk.LEFT)
 
-    entry = tk.Entry(box, textvariable=var,
+    # _disp is internal so placeholder text never leaks into the caller's `var`
+    _disp = tk.StringVar()
+    entry = tk.Entry(box, textvariable=_disp,
                      font=FONTS["body"],
                      bg=COLORS["input_bg"],
                      fg=COLORS["text"],
@@ -305,25 +307,42 @@ def modal_input(parent, *, var, placeholder: str = "", icon: str = None,
     entry.pack(side=tk.LEFT, fill=tk.X, expand=True,
                ipady=6, padx=(0 if icon else 10, 10))
 
-    if placeholder and not var.get():
-        entry.insert(0, placeholder)
+    _ph = [False]  # True while placeholder is displayed
+
+    init = var.get()
+    if init:
+        _disp.set(init)
+        if show:
+            entry.configure(show=show)
+    elif placeholder:
+        _ph[0] = True
+        _disp.set(placeholder)
         entry.configure(fg=COLORS["text_very_dim"], show="")
 
-        def _focus_in(_e, en=entry, ph=placeholder, sh=show):
-            if en.get() == ph:
-                en.delete(0, tk.END)
-                en.configure(fg=COLORS["text"])
-                if sh:
-                    en.configure(show=sh)
+    def _sync(*_):
+        if not _ph[0]:
+            var.set(_disp.get())
 
-        def _focus_out(_e, en=entry, ph=placeholder, sh=show):
-            if not en.get():
-                en.configure(show="")
-                en.insert(0, ph)
-                en.configure(fg=COLORS["text_very_dim"])
+    _disp.trace_add("write", _sync)
 
-        entry.bind("<FocusIn>", _focus_in)
-        entry.bind("<FocusOut>", _focus_out)
+    def _focus_in(_e):
+        if _ph[0]:
+            _ph[0] = False
+            _disp.set("")
+            entry.configure(fg=COLORS["text"])
+            if show:
+                entry.configure(show=show)
+
+    def _focus_out(_e):
+        if not _disp.get():
+            if placeholder:
+                _ph[0] = True
+                _disp.set(placeholder)
+                entry.configure(fg=COLORS["text_very_dim"], show="")
+            var.set("")
+
+    entry.bind("<FocusIn>", _focus_in)
+    entry.bind("<FocusOut>", _focus_out)
 
     box._entry = entry
     return box

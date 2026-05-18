@@ -21,6 +21,7 @@ from views.dialogs import (
     open_activity_form, confirm_done_activity, confirm_cancel_activity,
     open_user_form, open_reset_password_form,
     toggle_user_active, confirm_delete_user,
+    open_prayer_form, confirm_delete_prayer,
 )
 
 try:
@@ -464,7 +465,7 @@ class LoginWindow:
         shell.register("usuarios",   lambda c: self._render_users(c, shell))
         shell.register("membros",    lambda c: self._render_members(c, shell))
         shell.register("atividades", lambda c: self._render_activities(c, shell))
-        shell.register("oracoes",    lambda c: prayers.render(c))
+        shell.register("oracoes",    lambda c: self._render_prayers(c, shell))
         shell.register("relatorios", lambda c: self._render_reports(c))
         shell.register("whatsapp",   lambda c: self._render_whatsapp(c, shell))
 
@@ -646,6 +647,32 @@ class LoginWindow:
             "cancel_activity":   lambda aid: confirm_cancel_activity(
                 root, activity_id=aid, current_user_id=uid, on_confirm=refresh),
             "whatsapp_activity": lambda ev: self._open_whatsapp_for_event(ev, shell),
+        })
+
+    def _render_prayers(self, parent, shell):
+        from core.prayers import obter_oracao
+        root = self.root
+        _content_ref = [None]
+
+        def _smart_refresh():
+            c = _content_ref[0]
+            if c and c.winfo_exists() and hasattr(c, "_refresh"):
+                c._refresh()
+            else:
+                shell.navigate("oracoes")
+
+        def _delete_prayer(oid):
+            row = obter_oracao(oid)
+            solicitante = row["solicitante_nome"] if row else str(oid)
+            confirm_delete_prayer(root, oracao_id=oid,
+                                  solicitante=solicitante,
+                                  on_confirm=_smart_refresh)
+
+        _content_ref[0] = prayers.render(parent, callbacks={
+            "new_prayer":    lambda: open_prayer_form(root, on_save=_smart_refresh),
+            "edit_prayer":   lambda oid: open_prayer_form(
+                root, oracao_id=oid, on_save=_smart_refresh),
+            "delete_prayer": _delete_prayer,
         })
 
     def _open_whatsapp_for_event(self, event, shell):

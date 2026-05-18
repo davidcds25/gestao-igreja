@@ -15,6 +15,7 @@ def get_connection():
     """Retorna uma conexão com o banco de dados"""
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -144,6 +145,25 @@ def init_database():
             pass  # coluna 'ativo' não existe — banco novo, sem necessidade
     except Exception:
         pass  # coluna 'status' já existe
+
+    # Tabela de orações
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS oracoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            solicitante_nome TEXT NOT NULL,
+            membro_id INTEGER DEFAULT NULL,
+            motivo TEXT NOT NULL,
+            categoria TEXT NOT NULL DEFAULT 'Outros',
+            privacidade TEXT NOT NULL DEFAULT 'Pública',
+            status TEXT NOT NULL DEFAULT 'Ativa',
+            contexto TEXT DEFAULT NULL,
+            responsavel TEXT DEFAULT NULL,
+            observacoes TEXT DEFAULT NULL,
+            testemunho TEXT DEFAULT NULL,
+            data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(membro_id) REFERENCES membros(id) ON DELETE SET NULL
+        )
+    ''')
 
     # Inserir níveis de acesso padrão
     try:
