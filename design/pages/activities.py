@@ -123,6 +123,7 @@ def render(parent, *, activities=None, callbacks=None):
             raw = _sort_activities(raw, state["order"])
 
         _render_paged(raw, tab)
+        content.scroll_top()
 
     def _render_paged(items, tab):
         if not items:

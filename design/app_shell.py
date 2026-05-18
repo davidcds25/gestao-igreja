@@ -32,12 +32,13 @@ except ImportError:
 
 
 SIDEBAR_ITEMS = [
-    {"key": "home",       "icon": "🏠", "label": "Página Inicial"},
-    {"key": "atividades", "icon": "📋", "label": "Atividades e Eventos"},
-    {"key": "membros",    "icon": "👥", "label": "Membros"},
-    {"key": "whatsapp",   "icon": "💬", "label": "WhatsApp"},
-    {"key": "usuarios",   "icon": "👤", "label": "Gerenciar Usuários"},
-    {"key": "relatorios", "icon": "📊", "label": "Relatórios"},
+    {"key": "home",       "icon": "🏠", "label": "Página Inicial",       "niveis": None},
+    {"key": "usuarios",   "icon": "👤", "label": "Gerenciar Usuários",   "niveis": {"Admin"}},
+    {"key": "membros",    "icon": "👥", "label": "Membros",               "niveis": None},
+    {"key": "atividades", "icon": "📋", "label": "Atividades e Eventos", "niveis": None},
+    {"key": "oracoes",    "icon": "🙏", "label": "Orações",               "niveis": None},
+    {"key": "relatorios", "icon": "📊", "label": "Relatórios",            "niveis": {"Admin"}},
+    {"key": "whatsapp",   "icon": "💬", "label": "WhatsApp",              "niveis": None},
 ]
 
 
@@ -50,11 +51,12 @@ class AppShell:
         self.on_profile = on_profile
         self.on_edit_profile = on_edit_profile
 
-        # filtros conforme permissões — exemplo
-        items = list(SIDEBAR_ITEMS)
-        if current_user.get("nivel") != "Admin":
-            items = [it for it in items if it["key"] not in ("usuarios", "relatorios")]
-        self._items = items
+        # filtra itens conforme nível do usuário (None = todos podem ver)
+        nivel = current_user.get("nivel", "")
+        self._items = [
+            it for it in SIDEBAR_ITEMS
+            if it["niveis"] is None or nivel in it["niveis"]
+        ]
 
         # janela raiz
         root.title(APP_NAME)

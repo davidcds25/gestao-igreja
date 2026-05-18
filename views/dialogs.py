@@ -4,7 +4,7 @@ Chamadas a partir de views/login.py — sem dependência de instâncias de class
 """
 
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 
 BG_DARK    = "#0f0f23"
 BG_CARD    = "#1a1a2e"
@@ -105,181 +105,135 @@ def confirm_cancel_activity(root, *, activity_id, current_user_id=None, on_confi
 # USUÁRIOS
 # ══════════════════════════════════════════════════════════════════════════
 
-def open_user_form(root, *, uid=None, on_save=None):
-    from core.users import criar_usuario, atualizar_usuario, obter_usuario, NIVEIS_ACESSO
+_NIVEL_COLOR = {
+    "Admin":       "#667eea",
+    "Coordenador": "#0891b2",
+    "Usuário":     "#9b59b6",
+}
+
+
+def open_user_form(root, *, uid=None, on_save=None, current_user_id=None):
+    from core.users import (criar_usuario, atualizar_usuario, obter_usuario,
+                            alternar_ativo, deletar_usuario)
+    from design.modals import UserModal
 
     usuario = obter_usuario(uid) if uid else None
     editing = usuario is not None
-    titulo  = "Editar Usuário" if editing else "Novo Usuário"
 
-    win = tk.Toplevel(root)
-    win.title(titulo)
-    win.configure(bg=BG_DARK)
-    win.resizable(False, False)
-    win.grab_set()
-    _center_win(win, root, 460, 480 if editing else 560)
+    if editing:
+        initial = {
+            "nome":  usuario["nome"],
+            "email": usuario["email"],
+            "nivel": usuario["nivel_acesso"],
+            "ativo": bool(usuario["ativo"]),
+            "voce":  bool(current_user_id and usuario["id"] == current_user_id),
+        }
+        original_ativo = bool(usuario["ativo"])
 
-    card = tk.Frame(win, bg=BG_CARD)
-    card.pack(fill=tk.BOTH, expand=True, padx=24, pady=24)
-
-    tk.Label(card, text=titulo, font=("Segoe UI", 14, "bold"),
-             fg=ACCENT, bg=BG_CARD).pack(anchor=tk.W, pady=(0, 18))
-
-    entry_kw = dict(bg=DIVIDER, fg=TEXT, relief=tk.FLAT, bd=0,
-                    font=("Segoe UI", 11), insertbackground=TEXT)
-
-    def campo(label, show=None, valor=""):
-        tk.Label(card, text=label, font=("Segoe UI", 10, "bold"),
-                 fg="#aaaaaa", bg=BG_CARD).pack(anchor=tk.W, pady=(8, 2))
-        kw = dict(entry_kw)
-        if show:
-            kw["show"] = show
-        e = tk.Entry(card, **kw)
-        e.pack(fill=tk.X, ipady=7)
-        if valor:
-            e.insert(0, valor)
-        return e
-
-    e_nome  = campo("Nome Completo", valor=usuario["nome"]  if editing else "")
-    e_email = campo("E-mail",        valor=usuario["email"] if editing else "")
-
-    e_senha = e_conf = None
-    if not editing:
-        e_senha = campo("Senha",           show="•")
-        e_conf  = campo("Confirmar Senha", show="•")
-
-    tk.Label(card, text="Nível de Acesso", font=("Segoe UI", 10, "bold"),
-             fg="#aaaaaa", bg=BG_CARD).pack(anchor=tk.W, pady=(8, 2))
-    nivel_var = tk.StringVar(
-        value=usuario["nivel_acesso"] if editing else "Usuário")
-    ttk.Combobox(card, values=NIVEIS_ACESSO, textvariable=nivel_var,
-                 state="readonly", font=("Segoe UI", 11)).pack(fill=tk.X, ipady=4)
-
-    err_lbl = tk.Label(card, text="", font=("Segoe UI", 10),
-                       fg="#ff6b6b", bg=BG_CARD)
-    err_lbl.pack(anchor=tk.W, pady=(8, 0))
-
-    btn_row = tk.Frame(card, bg=BG_CARD)
-    btn_row.pack(fill=tk.X, pady=(16, 0))
-
-    def _salvar():
-        nome  = e_nome.get().strip()
-        email = e_email.get().strip()
-        nivel = nivel_var.get()
-        if not nome or not email:
-            err_lbl.configure(text="Nome e e-mail são obrigatórios.")
-            return
-        if editing:
-            err = atualizar_usuario(usuario["id"], nome, email, nivel)
+        def _on_save(data):
+            err = atualizar_usuario(usuario["id"], data["nome"], data["email"], data["nivel"])
             if err:
-                err_lbl.configure(text=err)
-                return
-        else:
-            senha   = e_senha.get()
-            confirm = e_conf.get()
-            if not senha:
-                err_lbl.configure(text="Informe uma senha.")
-                return
-            if len(senha) < 6:
-                err_lbl.configure(text="Mínimo 6 caracteres.")
-                return
-            if senha != confirm:
-                err_lbl.configure(text="As senhas não coincidem.")
-                return
-            _, err = criar_usuario(nome, email, senha, nivel)
-            if err:
-                err_lbl.configure(text=err)
-                return
-        win.destroy()
-        if on_save:
-            on_save()
+                return err
+            if bool(data["ativo"]) != original_ativo:
+                alternar_ativo(usuario["id"])
+            if on_save:
+                on_save()
+            return None
 
-    tk.Button(btn_row, text="Salvar",
-              bg=ACCENT, fg=BG_DARK,
-              activebackground="#00b8d9", activeforeground=BG_DARK,
-              command=_salvar, **_BTN).pack(side=tk.LEFT, padx=(0, 10))
-    tk.Button(btn_row, text="Cancelar",
-              bg=DIVIDER, fg="#aaaaaa",
-              activebackground="#3d3d54", activeforeground=TEXT,
-              command=win.destroy, **_BTN).pack(side=tk.LEFT)
+        def _on_delete():
+            deletar_usuario(usuario["id"])
+            if on_save:
+                on_save()
+
+        result = UserModal(root, mode="edit", initial=initial,
+                           on_save=_on_save, on_delete=_on_delete).show()
+        if result and result.get("_deleted"):
+            messagebox.showinfo("Excluído", "Usuário excluído com sucesso.", parent=root)
+        elif result:
+            messagebox.showinfo("Salvo", "Dados do usuário atualizados com sucesso.", parent=root)
+    else:
+        def _on_save(data):
+            _, err = criar_usuario(data["nome"], data["email"], data["senha"], data["nivel"])
+            if err:
+                return err
+            if on_save:
+                on_save()
+            return None
+
+        result = UserModal(root, mode="new", on_save=_on_save).show()
+        if result:
+            messagebox.showinfo("Salvo", "Usuário criado com sucesso.", parent=root)
 
 
 def open_reset_password_form(root, *, uid, username, on_save=None):
-    from core.users import redefinir_senha
+    from core.users import redefinir_senha, obter_usuario
+    from design.modals import PasswordResetModal
 
-    win = tk.Toplevel(root)
-    win.title("Redefinir Senha")
-    win.configure(bg=BG_DARK)
-    win.resizable(False, False)
-    win.grab_set()
-    _center_win(win, root, 400, 300)
+    usuario = obter_usuario(uid)
+    color = _NIVEL_COLOR.get(usuario["nivel_acesso"] if usuario else "", "#667eea")
+    email = usuario["email"] if usuario else ""
 
-    card = tk.Frame(win, bg=BG_CARD)
-    card.pack(fill=tk.BOTH, expand=True, padx=24, pady=24)
-
-    tk.Label(card, text=f"Redefinir senha de\n{username}",
-             font=("Segoe UI", 13, "bold"), fg=ACCENT, bg=BG_CARD,
-             justify=tk.LEFT).pack(anchor=tk.W, pady=(0, 16))
-
-    kw = dict(bg=DIVIDER, fg=TEXT, relief=tk.FLAT, bd=0,
-              font=("Segoe UI", 11), show="•", insertbackground=TEXT)
-
-    tk.Label(card, text="Nova Senha", font=("Segoe UI", 10, "bold"),
-             fg="#aaaaaa", bg=BG_CARD).pack(anchor=tk.W, pady=(0, 2))
-    e_nova = tk.Entry(card, **kw)
-    e_nova.pack(fill=tk.X, ipady=7)
-
-    tk.Label(card, text="Confirmar Senha", font=("Segoe UI", 10, "bold"),
-             fg="#aaaaaa", bg=BG_CARD).pack(anchor=tk.W, pady=(10, 2))
-    e_conf = tk.Entry(card, **kw)
-    e_conf.pack(fill=tk.X, ipady=7)
-
-    err_lbl = tk.Label(card, text="", font=("Segoe UI", 10),
-                       fg="#ff6b6b", bg=BG_CARD)
-    err_lbl.pack(anchor=tk.W, pady=(6, 0))
-
-    btn_row = tk.Frame(card, bg=BG_CARD)
-    btn_row.pack(fill=tk.X, pady=(12, 0))
-
-    def _salvar():
-        nova    = e_nova.get()
-        confirm = e_conf.get()
-        if len(nova) < 6:
-            err_lbl.configure(text="Mínimo 6 caracteres.")
-            return
-        if nova != confirm:
-            err_lbl.configure(text="As senhas não coincidem.")
-            return
-        redefinir_senha(uid, nova)
-        win.destroy()
-        messagebox.showinfo("Sucesso", "Senha redefinida com sucesso!", parent=root)
+    def _on_save(data):
+        try:
+            redefinir_senha(uid, data["senha"])
+        except Exception as exc:
+            return str(exc)
         if on_save:
             on_save()
+        return None
 
-    tk.Button(btn_row, text="Salvar",
-              bg=ACCENT, fg=BG_DARK,
-              activebackground="#00b8d9", activeforeground=BG_DARK,
-              command=_salvar, **_BTN).pack(side=tk.LEFT, padx=(0, 10))
-    tk.Button(btn_row, text="Cancelar",
-              bg=DIVIDER, fg="#aaaaaa",
-              activebackground="#3d3d54", activeforeground=TEXT,
-              command=win.destroy, **_BTN).pack(side=tk.LEFT)
+    result = PasswordResetModal(root,
+                               user={"nome": username, "email": email, "color": color},
+                               on_save=_on_save).show()
+    if result:
+        messagebox.showinfo("Salvo", f"Senha de {username} redefinida com sucesso.", parent=root)
 
 
-def toggle_user_active(*, uid, on_done=None):
-    from core.users import alternar_ativo
-    alternar_ativo(uid)
-    if on_done:
-        on_done()
+def toggle_user_active(*, uid, root=None, on_done=None):
+    from core.users import alternar_ativo, obter_usuario
+    from design.modals import ask_confirm
+
+    usuario = obter_usuario(uid)
+    nome  = usuario["nome"] if usuario else "este usuário"
+    ativo = bool(usuario["ativo"]) if usuario else True
+
+    if ativo:
+        ok = ask_confirm(
+            root,
+            title=f"Desativar '{nome}'?",
+            message="O login será bloqueado mas a conta poderá ser reativada depois.",
+            confirm_label="Desativar",
+            variant="warning",
+        )
+    else:
+        ok = ask_confirm(
+            root,
+            title=f"Ativar '{nome}'?",
+            message="O usuário voltará a conseguir fazer login normalmente.",
+            confirm_label="Ativar",
+            variant="info",
+        )
+
+    if ok:
+        alternar_ativo(uid)
+        if on_done:
+            on_done()
 
 
 def confirm_delete_user(root, *, usuario, on_confirm=None):
     from core.users import deletar_usuario
-    if messagebox.askyesno(
-        "Confirmar exclusão",
-        f"Excluir o usuário '{usuario['nome']}'?\nEsta ação não pode ser desfeita.",
-        parent=root,
-    ):
+    from design.modals import ask_confirm
+    ok = ask_confirm(
+        root,
+        title=f"Excluir o usuário '{usuario['nome']}'?",
+        message="Essa pessoa perderá o acesso ao sistema imediatamente.",
+        detail="Os registros que ela criou permanecem, mas a conta de login "
+               "será removida em definitivo. Essa ação não pode ser desfeita.",
+        confirm_label="Sim, excluir",
+        variant="danger",
+    )
+    if ok:
         deletar_usuario(usuario["id"])
         if on_confirm:
             on_confirm()
+        messagebox.showinfo("Excluído", f"Usuário '{usuario['nome']}' excluído com sucesso.", parent=root)
