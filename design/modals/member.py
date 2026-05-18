@@ -158,7 +158,7 @@ class MemberModal(StyledModal):
             av_cv.create_oval(2, 2, r, r, fill=color, outline="")
             av_cv.create_text(AVATAR_SIZE // 2, AVATAR_SIZE // 2,
                               text=init, fill="#ffffff",
-                              font=("Segoe UI", int(AVATAR_SIZE * 0.29), "bold"))
+                              font=(FONTS["body"][0], int(AVATAR_SIZE * 0.29), "bold"))
 
         self._draw_avatar = _draw_avatar
 
@@ -199,7 +199,7 @@ class MemberModal(StyledModal):
                  bg=bg, fg=COLORS["text_muted"]).pack(anchor=tk.W, pady=(0, 2))
         self._funcao_var = tk.StringVar(value=m["funcao"] if m else "Membro")
         ttk.Combobox(f_funcao, textvariable=self._funcao_var, values=FUNCOES,
-                     state="readonly", font=FONTS["body"]).pack(fill=tk.X, ipady=5)
+                     state="readonly", font=FONTS["body"]).pack(fill=tk.X, ipady=SPACING[1])
 
         f_grupo = tk.Frame(two_col, bg=bg)
         f_grupo.grid(row=0, column=1, sticky="nsew")
@@ -209,7 +209,7 @@ class MemberModal(StyledModal):
         _grupo_init = (m.get("grupo") or "(nenhum)") if m else "(nenhum)"
         self._grupo_var = tk.StringVar(value=_grupo_init)
         ttk.Combobox(f_grupo, textvariable=self._grupo_var, values=_grupo_opts,
-                     state="readonly", font=FONTS["body"]).pack(fill=tk.X, ipady=5)
+                     state="readonly", font=FONTS["body"]).pack(fill=tk.X, ipady=SPACING[1])
 
         # Checkbox Grupo de Casais — pode combinar com qualquer grupo acima
         # O checkbox e o label ficam separados: fg escuro no checkbox para o
@@ -258,7 +258,7 @@ class MemberModal(StyledModal):
             pill = tk.Label(
                 pill_row, text=s, font=FONTS["small_bold"],
                 bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                padx=18, pady=8, cursor="hand2", relief=tk.FLAT,
+                padx=SPACING[4], pady=SPACING[2], cursor="hand2", relief=tk.FLAT,
             )
             pill.pack(side=tk.LEFT, padx=(0, S[2]))
             _pills[s] = pill
@@ -291,7 +291,7 @@ class MemberModal(StyledModal):
             highlightbackground=COLORS["divider"],
             highlightcolor=COLORS["accent"],
         )
-        self._tel_e.pack(fill=tk.X, ipady=7)
+        self._tel_e.pack(fill=tk.X, ipady=SPACING[2])
         if m and m.get("telefone"):
             self._tel_e.insert(0, m["telefone"])
 
@@ -308,7 +308,7 @@ class MemberModal(StyledModal):
             highlightbackground=COLORS["divider"],
             highlightcolor=COLORS["accent"],
         )
-        self._email_e.pack(fill=tk.X, ipady=7)
+        self._email_e.pack(fill=tk.X, ipady=SPACING[2])
         if m and m.get("email"):
             self._email_e.insert(0, m["email"])
 

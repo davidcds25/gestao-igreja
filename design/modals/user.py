@@ -319,7 +319,7 @@ class UserModal(StyledDialog):
                      ).pack(side=tk.LEFT, padx=(0, SPACING[2]))
 
         save_label = "Salvar alterações" if self.mode == "edit" else "Criar usuário"
-        save_icon  = "+" if self.mode == "new" else "S"
+        save_icon  = "+" if self.mode == "new" else None
         modal_button(right, text=save_label, icon=save_icon,
                      kind="primary",
                      command=self._handle_save

@@ -446,6 +446,7 @@ class LoginWindow:
         shell_user = {
             "nome":  self.current_user["nome"],
             "nivel": self.current_user["nivel_acesso"],
+            "email": self.current_user["email"],
         }
 
         root = self.root
@@ -457,7 +458,8 @@ class LoginWindow:
             current_user=shell_user,
             on_logout=self.logout,
             on_profile=self.show_profile,
-            on_edit_profile=lambda: open_user_form(root, uid=uid, on_save=refresh_shell),
+            on_edit_profile=lambda: open_user_form(root, uid=uid, on_save=refresh_shell,
+                                                    current_user_id=uid),
         )
         self._current_shell = shell
 
@@ -581,8 +583,9 @@ class LoginWindow:
                 "email":     m["email"] or "",
                 "niver_dia": m["aniversario_dia"],
                 "niver_mes": str(m["aniversario_mes"]) if m["aniversario_mes"] else None,
-                "color":     color,
-                "grupo":     m["grupo"] if m["grupo"] else None,
+                "color":        color,
+                "grupo":        m["grupo"] if m["grupo"] else None,
+                "grupo_casais": bool(m["grupo_casais"]),
             })
         root = self.root
         refresh = lambda: shell.navigate("membros")
@@ -751,7 +754,8 @@ class LoginWindow:
         refresh = lambda: shell.navigate("usuarios")
         users.render(parent, users=mapped, callbacks={
             "new_user":       lambda: open_user_form(root, on_save=refresh),
-            "edit_user":      lambda uid: open_user_form(root, uid=uid, on_save=refresh),
+            "edit_user":      lambda uid: open_user_form(root, uid=uid, on_save=refresh,
+                                                         current_user_id=self.current_user["id"]),
             "reset_password": lambda uid, name: open_reset_password_form(
                 root, uid=uid, username=name, on_save=refresh),
             "toggle_active":  lambda uid: toggle_user_active(uid=uid, root=root, on_done=refresh),

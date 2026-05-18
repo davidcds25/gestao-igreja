@@ -61,16 +61,11 @@ class StyledModal(tk.Toplevel):
 
         text_col = tk.Frame(inner, bg=bg)
         text_col.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        tk.Label(text_col, text=title, font=FONTS["title"],
+        tk.Label(text_col, text=title, font=(FONTS["body"][0], 16, "bold"),
                  bg=bg, fg=COLORS["text"]).pack(anchor=tk.W)
         if subtitle:
             tk.Label(text_col, text=subtitle, font=FONTS["small"],
                      bg=bg, fg=COLORS["text_muted"]).pack(anchor=tk.W)
-
-        close = tk.Label(inner, text="✕", font=FONTS["subtitle"],
-                         bg=bg, fg=COLORS["text_muted"], cursor="hand2")
-        close.pack(side=tk.RIGHT)
-        close.bind("<Button-1>", lambda e: self.destroy())
 
         divider_line(hdr).pack(fill=tk.X)
 
@@ -202,16 +197,6 @@ class StyledDialog:
                      bg=COLORS["bg_card_raised"], fg=COLORS["text_muted"]
                      ).pack(anchor=tk.W, pady=(2, 0))
 
-        close_btn = tk.Label(inner, text="✕",
-                             font=(FONTS["body"][0], 11),
-                             bg=COLORS["bg_card_raised"],
-                             fg=COLORS["text_muted"],
-                             padx=10, pady=4,
-                             borderwidth=1, relief=tk.SOLID,
-                             cursor="hand2")
-        close_btn.configure(highlightbackground=COLORS["divider"])
-        close_btn.pack(side=tk.RIGHT, anchor=tk.N)
-        close_btn.bind("<Button-1>", lambda e: self.cancel())
 
     def _build_separator(self):
         tk.Frame(self.win, bg=COLORS["divider"], height=1).pack(fill=tk.X)
