@@ -56,36 +56,38 @@ def _build_stats(parent, users):
     return row
 
 
-def _cell(row, w, bg):
-    """Frame de célula com largura fixa e pack_propagate False."""
-    f = tk.Frame(row, bg=bg, width=w)
-    f.pack(side=tk.LEFT)
-    f.pack_propagate(False)
-    return f
+_COL_KEYS = ["nome", "email", "nivel", "status", "acoes"]
+_COL_LABELS = {"nome": "NOME", "email": "E-MAIL", "nivel": "NÍVEL",
+               "status": "STATUS", "acoes": "AÇÕES"}
+
+
+def _configure_cols(row):
+    """Aplica largura mínima fixa a cada coluna via grid."""
+    for i, key in enumerate(_COL_KEYS):
+        row.columnconfigure(i, minsize=_W[key], weight=0)
 
 
 def _build_table_header(parent):
     bg = COLORS["bg_card_raised"]
     row = tk.Frame(parent, bg=bg)
+    _configure_cols(row)
 
-    for key, w in _W.items():
-        label = {"nome": "NOME", "email": "E-MAIL", "nivel": "NÍVEL",
-                 "status": "STATUS", "acoes": "AÇÕES"}[key]
-        c = _cell(row, w, bg)
-        tk.Label(c, text=label, font=FONTS["section"],
+    for i, key in enumerate(_COL_KEYS):
+        tk.Label(row, text=_COL_LABELS[key], font=FONTS["section"],
                  bg=bg, fg=COLORS["text_muted"],
-                 anchor=tk.W).pack(anchor=tk.W, padx=SPACING[3], pady=SPACING[3])
+                 anchor=tk.W).grid(row=0, column=i, sticky="ew",
+                                   padx=SPACING[3], pady=SPACING[3])
     return row
 
 
 def _build_user_row(parent, user, callbacks):
     bg = COLORS["bg_card"]
     row = tk.Frame(parent, bg=bg)
+    _configure_cols(row)
 
     # ── Nome ──────────────────────────────────────────────
-    nome_cell = _cell(row, _W["nome"], bg)
-    nome_inner = tk.Frame(nome_cell, bg=bg)
-    nome_inner.pack(side=tk.LEFT, padx=SPACING[3], pady=SPACING[3])
+    nome_inner = tk.Frame(row, bg=bg)
+    nome_inner.grid(row=0, column=0, sticky="ew", padx=SPACING[3], pady=SPACING[3])
     initials_badge(nome_inner, user["nome"], user["color"],
                    size=28, bg=bg).pack(side=tk.LEFT, padx=(0, SPACING[2]))
     tk.Label(nome_inner, text=truncate(user["nome"], 18),
@@ -97,23 +99,20 @@ def _build_user_row(parent, user, callbacks):
                  fg=COLORS["accent"]).pack(side=tk.LEFT, padx=(SPACING[2], 0))
 
     # ── E-mail ────────────────────────────────────────────
-    email_cell = _cell(row, _W["email"], bg)
-    tk.Label(email_cell, text=truncate(user["email"], 26),
-             font=FONTS["mono"], bg=bg,
-             fg=COLORS["text_dim"],
-             anchor=tk.W).pack(anchor=tk.W, padx=SPACING[3], pady=SPACING[3])
+    tk.Label(row, text=truncate(user["email"], 26),
+             font=FONTS["mono"], bg=bg, fg=COLORS["text_dim"],
+             anchor=tk.W).grid(row=0, column=1, sticky="ew",
+                               padx=SPACING[3], pady=SPACING[3])
 
     # ── Nível ─────────────────────────────────────────────
-    nivel_cell = _cell(row, _W["nivel"], bg)
-    nivel_inner = tk.Frame(nivel_cell, bg=bg)
-    nivel_inner.pack(side=tk.LEFT, padx=SPACING[3], pady=SPACING[3])
+    nivel_inner = tk.Frame(row, bg=bg)
+    nivel_inner.grid(row=0, column=2, sticky="w", padx=SPACING[3], pady=SPACING[3])
     nivel_kind = "Planejado" if user["nivel"] == "Admin" else "Membro"
     badge(nivel_inner, user["nivel"], kind=nivel_kind).pack(side=tk.LEFT)
 
     # ── Status ────────────────────────────────────────────
-    status_cell = _cell(row, _W["status"], bg)
-    status_inner = tk.Frame(status_cell, bg=bg)
-    status_inner.pack(side=tk.LEFT, padx=SPACING[3], pady=SPACING[3])
+    status_inner = tk.Frame(row, bg=bg)
+    status_inner.grid(row=0, column=3, sticky="w", padx=SPACING[3], pady=SPACING[3])
     pill(status_inner,
          "Ativo" if user["ativo"] else "Inativo",
          dot_color=COLORS["success"] if user["ativo"] else COLORS["text_muted"],
@@ -121,11 +120,9 @@ def _build_user_row(parent, user, callbacks):
          ).pack(side=tk.LEFT)
 
     # ── Ações ─────────────────────────────────────────────
-    acoes_cell = _cell(row, _W["acoes"], bg)
-    acoes_inner = tk.Frame(acoes_cell, bg=bg)
-    acoes_inner.pack(side=tk.LEFT, padx=SPACING[3], pady=SPACING[3])
+    acoes_inner = tk.Frame(row, bg=bg)
+    acoes_inner.grid(row=0, column=4, sticky="w", padx=SPACING[3], pady=SPACING[3])
 
-    uid = user["id"]
     icon_button(acoes_inner, icon="✏", tooltip="Editar", size=30,
                 command=callbacks.get("edit_user") and
                         (lambda u=user: callbacks["edit_user"](u["id"]))
