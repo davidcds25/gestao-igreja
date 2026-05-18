@@ -1020,33 +1020,55 @@ def page_container(parent):
     + scroll vertical. Use sempre como root da view.
 
     Retorna o frame INTERNO onde você adiciona o conteúdo.
+    O frame retornado expõe `scroll_top()` para redefinir a posição ao topo.
+
+    Regras de scroll:
+      - Nunca rola acima do topo (scrollregion sempre começa em y=0).
+      - Só rola para baixo se houver conteúdo além da área visível.
+      - Velocidade natural: ~40 px por tick de mouse wheel.
     """
     from .tokens import PAGE_PAD_X, PAGE_PAD_Y
 
     outer = tk.Frame(parent, bg=COLORS["bg_dark"])
     outer.pack(fill=tk.BOTH, expand=True)
 
-    # canvas + scrollbar para scroll vertical
-    canvas = tk.Canvas(outer, bg=COLORS["bg_dark"],
-                       highlightthickness=0, bd=0)
-    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    sb = tk.Scrollbar(outer, orient=tk.VERTICAL, command=canvas.yview)
+    # scrollbar — sempre presente mas invisível quando não há overflow
+    sb = tk.Scrollbar(outer, orient=tk.VERTICAL)
     sb.pack(side=tk.RIGHT, fill=tk.Y)
-    canvas.configure(yscrollcommand=sb.set)
+
+    canvas = tk.Canvas(outer, bg=COLORS["bg_dark"],
+                       highlightthickness=0, bd=0,
+                       yscrollincrement=20,
+                       yscrollcommand=sb.set)
+    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    sb.configure(command=canvas.yview)
 
     inner = tk.Frame(canvas, bg=COLORS["bg_dark"])
     win_id = canvas.create_window((0, 0), window=inner, anchor=tk.NW)
 
-    def _on_resize(e):
-        canvas.itemconfigure(win_id, width=e.width)
-        canvas.configure(scrollregion=canvas.bbox("all"))
-    canvas.bind("<Configure>", _on_resize)
-    inner.bind("<Configure>",
-               lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    def _update_scrollregion(*_):
+        # Garante que o layout do inner esteja completo antes de medir
+        canvas.update_idletasks()
+        content_h = inner.winfo_reqheight()
+        canvas_h  = canvas.winfo_height()
+        canvas_w  = canvas.winfo_width()
+        # scrollregion começa em 0 (nunca rola acima do topo)
+        # altura = max(conteúdo, viewport) → sem scroll quando conteúdo cabe
+        scroll_h = max(content_h, canvas_h)
+        canvas.configure(scrollregion=(0, 0, canvas_w, scroll_h))
 
-    # Mouse wheel scroll — ativa quando o cursor entra na área do canvas
+    def _on_canvas_resize(e):
+        canvas.itemconfigure(win_id, width=e.width)
+        canvas.after_idle(_update_scrollregion)
+
+    canvas.bind("<Configure>", _on_canvas_resize)
+    inner.bind("<Configure>", lambda e: canvas.after_idle(_update_scrollregion))
+
+    # Mouse wheel — só ativa se o conteúdo ultrapassa a área visível
     def _scroll(e):
-        canvas.yview_scroll(-1 * (e.delta // 120), "units")
+        lo, hi = canvas.yview()
+        if hi - lo < 0.999:
+            canvas.yview_scroll(-1 * (e.delta // 120) * 2, "units")
 
     canvas.bind("<Enter>",   lambda e: canvas.bind_all("<MouseWheel>", _scroll))
     canvas.bind("<Leave>",   lambda e: canvas.unbind_all("<MouseWheel>"))
@@ -1056,4 +1078,8 @@ def page_container(parent):
     content = tk.Frame(inner, bg=COLORS["bg_dark"])
     content.pack(fill=tk.BOTH, expand=True,
                  padx=PAGE_PAD_X, pady=PAGE_PAD_Y)
+
+    # API para páginas com abas redefinirem o scroll ao trocar de aba
+    content.scroll_top = lambda: canvas.yview_moveto(0.0)
+
     return content

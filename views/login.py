@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from design.app_shell import AppShell
-from design.pages import home, members, activities, whatsapp, users, reports
+from design.pages import home, members, activities, whatsapp, users, reports, prayers
 from design.ui import COLORS, SPACING, FONTS
 from design.ui.components import cross_icon
 
@@ -458,13 +458,15 @@ class LoginWindow:
             on_profile=self.show_profile,
             on_edit_profile=lambda: open_user_form(root, uid=uid, on_save=refresh_shell),
         )
+        self._current_shell = shell
 
         shell.register("home",       lambda c: self._render_home(c, shell))
+        shell.register("usuarios",   lambda c: self._render_users(c, shell))
         shell.register("membros",    lambda c: self._render_members(c, shell))
         shell.register("atividades", lambda c: self._render_activities(c, shell))
-        shell.register("whatsapp",   lambda c: self._render_whatsapp(c, shell))
-        shell.register("usuarios",   lambda c: self._render_users(c, shell))
+        shell.register("oracoes",    lambda c: prayers.render(c))
         shell.register("relatorios", lambda c: self._render_reports(c))
+        shell.register("whatsapp",   lambda c: self._render_whatsapp(c, shell))
 
         shell.navigate("home")
 
@@ -724,8 +726,8 @@ class LoginWindow:
             "new_user":       lambda: open_user_form(root, on_save=refresh),
             "edit_user":      lambda uid: open_user_form(root, uid=uid, on_save=refresh),
             "reset_password": lambda uid, name: open_reset_password_form(
-                root, uid=uid, username=name),
-            "toggle_active":  lambda uid: toggle_user_active(uid=uid, on_done=refresh),
+                root, uid=uid, username=name, on_save=refresh),
+            "toggle_active":  lambda uid: toggle_user_active(uid=uid, root=root, on_done=refresh),
             "delete_user":    lambda u: confirm_delete_user(root, usuario=u, on_confirm=refresh),
         })
 
@@ -759,10 +761,15 @@ class LoginWindow:
             data["realizadas"]   = sum(1 for a in raw_at if a["status"] == "Concluído")
             data["canceladas"]   = sum(1 for a in raw_at if a["status"] == "Cancelado")
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             data.setdefault("_error", str(e))
-        reports.render(parent, data=data)
+
+        # Recupera o shell atual para poder navegar ao WhatsApp
+        shell = getattr(self, "_current_shell", None)
+        callbacks = {}
+        if shell:
+            callbacks["send_birthday"] = lambda b: self._open_whatsapp_for_birthday(b, shell)
+
+        reports.render(parent, data=data, callbacks=callbacks)
 
     # ── AUXILIARES ─────────────────────────────────────────────────
 

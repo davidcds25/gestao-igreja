@@ -25,6 +25,13 @@ def render(parent, *, data=None, callbacks=None):
     callbacks = callbacks or {}
     content   = page_container(parent)
 
+    # Estado compartilhado para exportação
+    export_state = {
+        "tab":      "membros",
+        "aniv_mes": datetime.now().month - 1,
+        "cresc_ano": datetime.now().year,
+    }
+
     hdr = screen_header(
         content,
         icon="📊",
@@ -32,9 +39,45 @@ def render(parent, *, data=None, callbacks=None):
         subtitle="Visão geral da igreja",
     )
     hdr["frame"].pack(fill=tk.X, pady=(0, SPACING[5]))
+
+    def _export():
+        from tkinter import filedialog, messagebox
+        path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("Arquivo PDF", "*.pdf")],
+            title="Salvar relatório como PDF",
+            initialfile=f"relatorio_{export_state['tab']}_{datetime.now():%Y%m%d}",
+        )
+        if not path:
+            return
+        try:
+            from core.pdf_export import export_tab
+            export_tab(
+                tab=export_state["tab"],
+                data=data,
+                aniv_mes=export_state["aniv_mes"],
+                cresc_ano=export_state["cresc_ano"],
+                filepath=path,
+            )
+            import os, sys, subprocess
+            try:
+                if sys.platform == "win32":
+                    os.startfile(path)
+                elif sys.platform == "darwin":
+                    subprocess.call(["open", path])
+                else:
+                    subprocess.call(["xdg-open", path])
+            except Exception:
+                messagebox.showinfo("PDF gerado", f"Arquivo salvo em:\n{path}",
+                                    parent=content)
+        except Exception as exc:
+            messagebox.showerror("Erro ao exportar",
+                                 f"Não foi possível gerar o PDF:\n{exc}",
+                                 parent=content)
+
     button(hdr["actions"], text="Exportar PDF",
            kind="ghost", icon="📄",
-           command=callbacks.get("export_pdf")).pack(side=tk.LEFT)
+           command=_export).pack(side=tk.LEFT)
 
     # ─── Tabs ─────────────────────────────────────────────────────
     tab_row = tk.Frame(content, bg=COLORS["bg_dark"])
@@ -44,16 +87,20 @@ def render(parent, *, data=None, callbacks=None):
     body.pack(fill=tk.BOTH, expand=True)
 
     def _show(tab):
+        export_state["tab"] = tab
         for w in body.winfo_children():
             w.destroy()
         if tab == "membros":
             _render_membros(body, data)
         elif tab == "aniversariantes":
-            _render_aniversariantes(body)
+            _render_aniversariantes(body,
+                                    on_congrats=callbacks.get("send_birthday"),
+                                    export_state=export_state)
         elif tab == "eventos":
             _render_eventos(body, data)
         elif tab == "crescimento":
-            _render_crescimento(body)
+            _render_crescimento(body, export_state=export_state)
+        content.scroll_top()
 
     tabs_widget = build_tabs(
         tab_row,
@@ -133,8 +180,9 @@ _MESES = ["Jan","Fev","Mar","Abr","Mai","Jun",
           "Jul","Ago","Set","Out","Nov","Dez"]
 
 
-def _render_aniversariantes(parent):
-    bg = parent["bg"]
+def _render_aniversariantes(parent, *, on_congrats=None, export_state=None):
+    bg    = parent["bg"]
+    today = datetime.now().day
     current = datetime.now().month - 1
     state   = {"active": current}
 
@@ -148,6 +196,8 @@ def _render_aniversariantes(parent):
 
     def _set_month(idx):
         state["active"] = idx
+        if export_state is not None:
+            export_state["aniv_mes"] = idx
         _render_buttons()
         _render_list()
 
@@ -176,8 +226,14 @@ def _render_aniversariantes(parent):
             from core.members import aniversariantes_do_mes
             raw = list(aniversariantes_do_mes(state["active"] + 1))
             data_list = [
-                {"dia": r["aniversario_dia"], "nome": r["nome"],
-                 "funcao": r["funcao"] or "Membro", "color": "#667eea"}
+                {
+                    "dia":      r["aniversario_dia"],
+                    "mes":      state["active"] + 1,
+                    "nome":     r["nome"],
+                    "telefone": r["telefone"] or "",
+                    "funcao":   r["funcao"] or "Membro",
+                    "color":    "#667eea",
+                }
                 for r in raw
             ]
         except Exception as _e:
@@ -213,12 +269,14 @@ def _render_aniversariantes(parent):
 
         for i, b in enumerate(data_list):
             line = tk.Frame(card, bg=COLORS["bg_card"])
-            line.pack(fill=tk.X, padx=SPACING[5], pady=SPACING[2])
+            line.pack(fill=tk.X, padx=SPACING[5], pady=SPACING[3])
 
-            date_col = tk.Frame(line, bg=COLORS["bg_card"], width=52)
+            # Coluna da data — sem pack_propagate para que o frame cresça
+            # naturalmente até o tamanho dos labels internos.
+            date_col = tk.Frame(line, bg=COLORS["bg_card"])
             date_col.pack(side=tk.LEFT, padx=(0, SPACING[3]))
-            date_col.pack_propagate(False)
-            tk.Label(date_col, text=f"{b['dia']:02d}",
+            dia_txt = f"{b['dia']:02d}" if b.get("dia") else "--"
+            tk.Label(date_col, text=dia_txt,
                      font=(FONTS["body"][0], 22, "bold"),
                      bg=COLORS["bg_card"],
                      fg=COLORS["warning"]).pack()
@@ -227,8 +285,9 @@ def _render_aniversariantes(parent):
                      bg=COLORS["bg_card"],
                      fg=COLORS["text_muted"]).pack()
 
-            tk.Frame(line, bg=COLORS["divider_soft"], width=1).pack(
-                side=tk.LEFT, fill=tk.Y, padx=(0, SPACING[3]))
+            tk.Frame(line, bg=COLORS["divider"],
+                     width=1).pack(side=tk.LEFT, fill=tk.Y,
+                                   padx=(0, SPACING[3]))
 
             initials_badge(line, b["nome"], b["color"], size=32,
                            bg=COLORS["bg_card"]).pack(side=tk.LEFT,
@@ -244,8 +303,10 @@ def _render_aniversariantes(parent):
                      bg=COLORS["bg_card"],
                      fg=COLORS["text_muted"]).pack(anchor=tk.W)
 
-            button(line, text="Parabenizar",
-                   kind="whatsapp", icon="💬").pack(side=tk.RIGHT)
+            if b.get("dia") == today and on_congrats:
+                button(line, text="🎂 Parabenizar", kind="whatsapp",
+                       command=lambda _b=b: on_congrats(_b)
+                       ).pack(side=tk.RIGHT)
 
             if i < len(data_list) - 1:
                 divider_line(card, soft=True).pack(fill=tk.X, padx=SPACING[4])
@@ -288,24 +349,224 @@ def _render_eventos(parent, data):
 
 
 # ─── ABA: CRESCIMENTO ─────────────────────────────────────────────
-def _render_crescimento(parent):
-    """Placeholder — dados reais de historico de crescimento serao implementados em release futura."""
-    bg = parent["bg"]
-    card = tk.Frame(parent, bg=COLORS["bg_card"],
-                    highlightbackground=COLORS["divider"],
-                    highlightthickness=1)
-    card.pack(fill=tk.X, pady=(SPACING[6], 0))
+_MESES_FULL = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+               "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
 
-    inner = tk.Frame(card, bg=COLORS["bg_card"])
-    inner.pack(pady=SPACING[10], padx=SPACING[8])
 
-    tk.Label(inner, text="📈", font=(FONTS["body"][0], 36),
-             bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack()
-    tk.Label(inner, text="Relatório de Crescimento",
-             font=FONTS["subtitle"], bg=COLORS["bg_card"],
-             fg=COLORS["text"]).pack(pady=(SPACING[3], SPACING[1]))
-    tk.Label(inner,
-             text="Esta aba exibirá o histórico de crescimento da igreja\n"
-                  "ao longo dos últimos 12 meses. Em desenvolvimento.",
-             font=FONTS["body"], bg=COLORS["bg_card"],
-             fg=COLORS["text_muted"], justify=tk.CENTER).pack()
+def _render_crescimento(parent, *, export_state=None):
+    from datetime import datetime
+    from core.members import crescimento_mensal
+
+    bg   = parent["bg"]
+    ano_atual = datetime.now().year
+    state = {"ano": ano_atual, "data": None}
+
+    # ── containers ────────────────────────────────────────────────
+    top_bar  = tk.Frame(parent, bg=bg)
+    top_bar.pack(fill=tk.X, pady=(0, SPACING[4]))
+
+    kpi_row  = tk.Frame(parent, bg=bg)
+    kpi_row.pack(fill=tk.X, pady=(0, SPACING[5]))
+
+    chart_card = tk.Frame(parent, bg=COLORS["bg_card"],
+                          highlightbackground=COLORS["divider"],
+                          highlightthickness=1)
+    chart_card.pack(fill=tk.X)
+
+    legend_row = tk.Frame(parent, bg=bg)
+    legend_row.pack(fill=tk.X, pady=(SPACING[3], 0))
+
+    # ── helpers ───────────────────────────────────────────────────
+    def _load(ano):
+        try:
+            return crescimento_mensal(ano)
+        except Exception:
+            return {"ano": ano, "membros": [0]*12,
+                    "visitantes": [0]*12, "afastados": [0]*12,
+                    "anos_disponiveis": [ano_atual]}
+
+    def _refresh(ano):
+        state["ano"]  = ano
+        state["data"] = _load(ano)
+        if export_state is not None:
+            export_state["cresc_ano"] = ano
+        _render_top_bar()
+        _render_kpis()
+        _render_chart()
+        _render_legend()
+
+    # ── top bar: seletor de ano ────────────────────────────────────
+    def _render_top_bar():
+        for w in top_bar.winfo_children():
+            w.destroy()
+        tk.Label(top_bar, text="Crescimento mensal",
+                 font=FONTS["subtitle"],
+                 bg=bg, fg=COLORS["text"]).pack(side=tk.LEFT)
+
+        anos = state["data"]["anos_disponiveis"] if state["data"] else [ano_atual]
+        # Garante que ao menos o ano atual aparece
+        if ano_atual not in anos:
+            anos = [ano_atual] + list(anos)
+
+        btn_frame = tk.Frame(top_bar, bg=bg)
+        btn_frame.pack(side=tk.RIGHT)
+        for a in sorted(anos):
+            ativo = (a == state["ano"])
+            lbl = tk.Label(btn_frame, text=str(a),
+                           font=FONTS["small_bold"],
+                           bg=COLORS["accent"] if ativo else COLORS["bg_card"],
+                           fg=COLORS["bg_dark"] if ativo else COLORS["text_dim"],
+                           padx=SPACING[3], pady=SPACING[1] + 2,
+                           highlightbackground=COLORS["divider"],
+                           highlightthickness=1,
+                           cursor="hand2")
+            lbl.pack(side=tk.LEFT, padx=2)
+            lbl.bind("<Button-1>", lambda e, _a=a: _refresh(_a))
+
+    # ── KPIs ──────────────────────────────────────────────────────
+    def _render_kpis():
+        for w in kpi_row.winfo_children():
+            w.destroy()
+        d = state["data"] or {}
+        m = d.get("membros",    [0]*12)
+        v = d.get("visitantes", [0]*12)
+        a = d.get("afastados",  [0]*12)
+
+        total_m  = sum(m)
+        total_v  = sum(v)
+        total_a  = sum(a)
+        total    = total_m + total_v + total_a
+
+        combined = [m[i] + v[i] for i in range(12)]
+        mes_pico = combined.index(max(combined)) if any(combined) else -1
+        pico_txt = _MESES_FULL[mes_pico] if mes_pico >= 0 and max(combined) > 0 else "—"
+
+        kpis = [
+            (total,    "Total cadastrado", f"no ano de {state['ano']}",      COLORS["text"]),
+            (total_m,  "Membros",          "adicionados como ativos",         COLORS["accent"]),
+            (total_v,  "Visitantes",       "cadastrados no período",          COLORS["warning"]),
+            (pico_txt, "Mês de pico",      "maior número de entradas",        COLORS["success"]),
+        ]
+        for c in range(4):
+            kpi_row.columnconfigure(c, weight=1, uniform="kpi")
+        for i, (val, lbl, sub, cor) in enumerate(kpis):
+            cell = tk.Frame(kpi_row, bg=bg)
+            cell.grid(row=0, column=i, sticky="nsew",
+                      padx=(0 if i == 0 else SPACING[1],
+                            0 if i == 3 else SPACING[1]))
+            big_stat(cell, value=val, label=lbl, sub=sub,
+                     color=cor).pack(fill=tk.BOTH, expand=True)
+
+    # ── Canvas chart ──────────────────────────────────────────────
+    CHART_H     = 220
+    PAD_L       = 48   # espaço para labels do eixo Y
+    PAD_R       = 16
+    PAD_T       = 16
+    PAD_B       = 36   # espaço para labels do eixo X
+    BAR_GAP     = 6    # espaço entre grupos
+    BAR_INNER   = 2    # espaço entre barras do mesmo grupo
+    COLOR_M     = COLORS["accent"]
+    COLOR_V     = COLORS["warning"]
+    COLOR_A     = COLORS["danger"]
+
+    canvas_ref = [None]
+
+    def _render_chart():
+        for w in chart_card.winfo_children():
+            w.destroy()
+
+        cv = tk.Canvas(chart_card, bg=COLORS["bg_card"],
+                       highlightthickness=0, height=CHART_H)
+        cv.pack(fill=tk.X, padx=SPACING[4], pady=SPACING[4])
+        canvas_ref[0] = cv
+
+        def _draw(event=None):
+            cv.delete("all")
+            W = cv.winfo_width()
+            if W < 50:
+                return
+
+            d  = state["data"] or {}
+            m  = d.get("membros",    [0]*12)
+            v  = d.get("visitantes", [0]*12)
+            a  = d.get("afastados",  [0]*12)
+
+            draw_w  = W - PAD_L - PAD_R
+            draw_h  = CHART_H - PAD_T - PAD_B
+            n_meses = 12
+            slot_w  = draw_w / n_meses
+            n_bars  = 3   # membros, visitantes, afastados
+            bar_w   = max(4, (slot_w - BAR_GAP * 2) / n_bars - BAR_INNER)
+
+            max_val = max(max(m), max(v), max(a), 1)
+            # Round up to a nice ceiling
+            step = max(1, max_val // 5)
+            y_max = (max_val // step + 1) * step
+
+            # eixo Y (linhas de grade + labels)
+            for tick in range(0, y_max + 1, step):
+                y = PAD_T + draw_h - (tick / y_max) * draw_h
+                cv.create_line(PAD_L, y, W - PAD_R, y,
+                               fill=COLORS["divider"], dash=(4, 4))
+                cv.create_text(PAD_L - 4, y,
+                               text=str(tick),
+                               font=(FONTS["small"][0], 8),
+                               fill=COLORS["text_muted"],
+                               anchor="e")
+
+            # eixo X + barras
+            for i in range(n_meses):
+                x_center = PAD_L + (i + 0.5) * slot_w
+                group_w  = bar_w * n_bars + BAR_INNER * (n_bars - 1)
+                x_start  = x_center - group_w / 2
+
+                pairs = [(m[i], COLOR_M), (v[i], COLOR_V), (a[i], COLOR_A)]
+                for j, (val, color) in enumerate(pairs):
+                    x0 = x_start + j * (bar_w + BAR_INNER)
+                    x1 = x0 + bar_w
+                    if val > 0:
+                        bar_h = (val / y_max) * draw_h
+                        y0 = PAD_T + draw_h - bar_h
+                        y1 = PAD_T + draw_h
+                        cv.create_rectangle(x0, y0, x1, y1,
+                                            fill=color, outline="", width=0)
+                        if bar_h > 14:
+                            cv.create_text((x0 + x1) / 2, y0 + 6,
+                                           text=str(val),
+                                           font=(FONTS["small"][0], 8, "bold"),
+                                           fill="#ffffff")
+
+                # label do mês
+                cv.create_text(x_center, CHART_H - PAD_B + 8,
+                               text=_MESES_FULL[i],
+                               font=(FONTS["small"][0], 8),
+                               fill=COLORS["text_muted"])
+
+        cv.bind("<Configure>", _draw)
+        cv.after(50, _draw)
+
+    # ── Legenda ───────────────────────────────────────────────────
+    def _render_legend():
+        for w in legend_row.winfo_children():
+            w.destroy()
+        items = [
+            (COLOR_M, "Membros Ativos"),
+            (COLOR_V, "Visitantes"),
+            (COLOR_A, "Afastados"),
+        ]
+        for color, label in items:
+            dot = tk.Canvas(legend_row, width=10, height=10,
+                            bg=bg, highlightthickness=0)
+            dot.create_oval(0, 0, 10, 10, fill=color, outline="")
+            dot.pack(side=tk.LEFT, padx=(0, SPACING[1]))
+            tk.Label(legend_row, text=label,
+                     font=FONTS["small"],
+                     bg=bg, fg=COLORS["text_muted"]
+                     ).pack(side=tk.LEFT, padx=(0, SPACING[4]))
+
+    # ── primeiro carregamento ──────────────────────────────────────
+    state["data"] = _load(ano_atual)
+    _render_top_bar()
+    _render_kpis()
+    _render_chart()
+    _render_legend()
