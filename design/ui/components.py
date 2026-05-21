@@ -109,6 +109,7 @@ def initials_badge(parent, name: str, color: str, size: int = 36, bg=None):
 _BTN_STYLES = {
     "primary":   {"bg": "accent",   "fg": "bg_dark"},
     "secondary": {"bg": "accent2",  "fg": "text"},
+    "success":   {"bg": "success",  "fg": "bg_dark"},
     "danger":    {"bg": "danger",   "fg": "text"},
     "ghost":     {"bg": "input_bg", "fg": "text"},
     "whatsapp":  {"bg": "whatsapp", "fg": "text"},

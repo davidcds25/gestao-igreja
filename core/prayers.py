@@ -46,7 +46,8 @@ def criar_oracao(solicitante_nome, motivo, categoria="Outros",
         conn.close()
 
 
-def listar_oracoes(status=None, categoria=None, privacidade=None):
+def listar_oracoes(status=None, categoria=None, privacidade=None,
+                   ano=None, mes=None):
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -66,6 +67,9 @@ def listar_oracoes(status=None, categoria=None, privacidade=None):
         if privacidade:
             query += " AND o.privacidade = ?"
             params.append(privacidade)
+        if ano and mes:
+            query += " AND strftime('%Y-%m', o.data_cadastro) = ?"
+            params.append(f"{ano:04d}-{mes:02d}")
         query += " ORDER BY o.data_cadastro DESC"
         cur.execute(query, params)
         return cur.fetchall()
@@ -120,6 +124,30 @@ def deletar_oracao(oracao_id):
         cur = conn.cursor()
         cur.execute("DELETE FROM oracoes WHERE id = ?", (oracao_id,))
         conn.commit()
+    finally:
+        conn.close()
+
+
+def atualizar_status_oracao(oracao_id, status, *,
+                             testemunho=None, observacoes=None):
+    conn = get_connection()
+    try:
+        sets   = ["status = ?"]
+        params = [status]
+        if testemunho is not None:
+            sets.append("testemunho = ?")
+            params.append(testemunho)
+        if observacoes is not None:
+            sets.append("observacoes = ?")
+            params.append(observacoes)
+        params.append(oracao_id)
+        conn.execute(
+            f"UPDATE oracoes SET {', '.join(sets)} WHERE id = ?", params
+        )
+        conn.commit()
+        return True
+    except Exception:
+        return False
     finally:
         conn.close()
 

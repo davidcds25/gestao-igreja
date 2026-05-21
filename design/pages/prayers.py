@@ -5,7 +5,7 @@ Tela de Orações — abas Pendentes / Respondidas / Arquivadas, KPIs e cards.
 """
 
 import tkinter as tk
-from datetime import datetime
+from datetime import datetime, date as _date_cls
 
 from ..ui import COLORS, SPACING, FONTS
 from ..ui.components import (
@@ -15,7 +15,82 @@ from ..ui.components import (
 )
 from ..ui.helpers import truncate
 
-PAGE_SIZE = 7
+PAGE_SIZE = 3
+
+_MESES_PT = [
+    "Janeiro", "Fevereiro", "Março", "Abril",
+    "Maio", "Junho", "Julho", "Agosto",
+    "Setembro", "Outubro", "Novembro", "Dezembro",
+]
+
+_CANCELLED = object()
+
+
+def _ask_comment(root, *, title, field_label, confirm_text, confirm_kind="primary"):
+    """Small blocking dialog to capture an optional comment before a status change.
+    Returns (confirmed: bool, comment: str | None)."""
+    result = [_CANCELLED]
+    bg = COLORS["bg_card"]
+
+    win = tk.Toplevel(root)
+    win.title(title)
+    win.configure(bg=bg)
+    win.resizable(False, False)
+    win.grab_set()
+
+    w, h = 480, 290
+    win.update_idletasks()
+    px = root.winfo_rootx() + (root.winfo_width()  - w) // 2
+    py = root.winfo_rooty() + (root.winfo_height() - h) // 2
+    win.geometry(f"{w}x{h}+{px}+{py}")
+
+    body = tk.Frame(win, bg=bg, padx=SPACING[6], pady=SPACING[5])
+    body.pack(fill=tk.BOTH, expand=True)
+
+    tk.Label(body, text=title,
+             font=FONTS["body_strong"], bg=bg, fg=COLORS["text"]
+             ).pack(anchor=tk.W, pady=(0, SPACING[3]))
+
+    tk.Label(body, text=f"{field_label} (opcional):",
+             font=FONTS["small"], bg=bg, fg=COLORS["text_muted"]
+             ).pack(anchor=tk.W, pady=(0, SPACING[1]))
+
+    txt_bg = COLORS["input_bg"]
+    txt_frame = tk.Frame(body, bg=txt_bg,
+                         highlightbackground=COLORS["divider"],
+                         highlightthickness=1)
+    txt_frame.pack(fill=tk.X, pady=(0, SPACING[4]))
+    txt = tk.Text(txt_frame, height=4,
+                  font=FONTS["body"],
+                  bg=txt_bg, fg=COLORS["text"],
+                  insertbackground=COLORS["text"],
+                  relief=tk.FLAT, bd=0, wrap=tk.WORD,
+                  padx=10, pady=8)
+    txt.pack(fill=tk.X)
+
+    btn_row = tk.Frame(body, bg=bg)
+    btn_row.pack(fill=tk.X)
+
+    def _cancel(_e=None):
+        result[0] = _CANCELLED
+        win.destroy()
+
+    def _confirm():
+        result[0] = txt.get("1.0", tk.END).strip()
+        win.destroy()
+
+    button(btn_row, text="Cancelar", kind="ghost",
+           command=_cancel).pack(side=tk.RIGHT, padx=(SPACING[2], 0))
+    button(btn_row, text=confirm_text, kind=confirm_kind,
+           command=_confirm).pack(side=tk.RIGHT)
+
+    win.bind("<Escape>", _cancel)
+    txt.focus_set()
+    win.wait_window()
+
+    if result[0] is _CANCELLED:
+        return False, None
+    return True, result[0] or None
 
 _STATUS_COLOR = {
     "Ativa":      COLORS["accent"],
@@ -52,7 +127,8 @@ def _pill(parent, text, color, bg=None):
     return lbl
 
 
-def _prayer_card(parent, oracao, *, on_edit=None, on_delete=None):
+def _prayer_card(parent, oracao, *, on_edit=None, on_delete=None,
+                 on_respond=None, on_archive=None):
     bg    = COLORS["bg_card"]
     outer = tk.Frame(parent, bg=bg,
                      highlightbackground=COLORS["divider"],
@@ -153,27 +229,50 @@ def _prayer_card(parent, oracao, *, on_edit=None, on_delete=None):
                  bg=bg, fg=COLORS["text_dim"]
                  ).pack(side=tk.LEFT)
 
+    # CRUD buttons (right, packed right-to-left so Excluir stays rightmost)
     if on_delete:
         button(act, text="Excluir", kind="ghost",
                command=on_delete).pack(side=tk.RIGHT, padx=(SPACING[2], 0))
     if on_edit:
         button(act, text="Editar", kind="ghost",
-               command=on_edit).pack(side=tk.RIGHT)
+               command=on_edit).pack(side=tk.RIGHT, padx=(SPACING[2], 0))
+
+    # Separator between CRUD and quick-action buttons
+    if (on_respond or on_archive) and (on_edit or on_delete):
+        tk.Frame(act, bg=COLORS["divider"], width=1
+                 ).pack(side=tk.RIGHT, fill=tk.Y, padx=SPACING[2])
+
+    # Quick-action buttons — shown based on current status
+    if st in ("Ativa", "Respondida") and on_archive:
+        button(act, text="Arquivar", kind="ghost", icon="📁",
+               command=on_archive).pack(side=tk.RIGHT, padx=(SPACING[2], 0))
+    if st == "Ativa" and on_respond:
+        button(act, text="Respondida", kind="success", icon="✓",
+               command=on_respond).pack(side=tk.RIGHT)
 
     return outer
 
 
-def render(parent, *, callbacks=None):
+def render(parent, *, callbacks=None, current_user_id=None):
     callbacks = callbacks or {}
     bg        = COLORS["bg_dark"]
 
     content = page_container(parent)
 
+    _SORT_MAP = {
+        "Data ↓":    "data_desc",
+        "Data ↑":    "data_asc",
+        "Categoria": "categoria",
+        "Nome A→Z":  "nome",
+    }
+
     state = {
-        "tab":      "ativas",
+        "tab":       "ativas",
         "categoria": "Todas",
-        "page":     0,
-        "lists":    {"ativas": [], "respondidas": [], "arquivadas": []},
+        "sort":      "data_desc",
+        "page":      0,
+        "mes":       _date_cls.today().replace(day=1),
+        "lists":     {"ativas": [], "respondidas": [], "arquivadas": []},
     }
 
     # ── Header ────────────────────────────────────────────────────────
@@ -189,9 +288,23 @@ def render(parent, *, callbacks=None):
 
     # ── KPIs ──────────────────────────────────────────────────────────
     kpi_wrap = tk.Frame(content, bg=bg)
-    kpi_wrap.pack(fill=tk.X, pady=(0, SPACING[5]))
+    kpi_wrap.pack(fill=tk.X, pady=(0, SPACING[4]))
 
-    # ── Abas + filtro de categoria ────────────────────────────────────
+    # Month navigation bar
+    mes_bar = tk.Frame(content, bg=bg)
+    mes_bar.pack(fill=tk.X, pady=(0, SPACING[4]))
+
+    _mes_lbl = tk.Label(mes_bar, text="",
+                        font=FONTS["body_strong"], bg=bg, fg=COLORS["text"])
+
+    button(mes_bar, text="◄ Anterior", kind="ghost",
+           command=lambda: _go_mes(-1)).pack(side=tk.LEFT, padx=(0, SPACING[2]))
+    _mes_lbl.pack(side=tk.LEFT, padx=(0, SPACING[2]))
+    button(mes_bar, text="Próximo ►", kind="ghost",
+           command=lambda: _go_mes(+1)).pack(side=tk.LEFT, padx=(0, SPACING[2]))
+    button(mes_bar, text="Hoje", kind="ghost",
+           command=lambda: _go_hoje()).pack(side=tk.LEFT, padx=(SPACING[3], 0))
+
     tab_row = tk.Frame(content, bg=bg)
     tab_row.pack(fill=tk.X, pady=(0, SPACING[4]))
 
@@ -207,6 +320,14 @@ def render(parent, *, callbacks=None):
              bg=bg, fg=COLORS["text_muted"]
              ).pack(side=tk.RIGHT, padx=(0, SPACING[1]))
 
+    select(tab_row, value="Data ↓",
+           options=list(_SORT_MAP),
+           on_change=lambda v: _on_filter("sort", _SORT_MAP[v])
+           ).pack(side=tk.RIGHT, padx=(0, SPACING[3]))
+    tk.Label(tab_row, text="Ordenar:",
+             bg=bg, fg=COLORS["text_muted"]
+             ).pack(side=tk.RIGHT, padx=(0, SPACING[1]))
+
     # ── Lista + navegação ─────────────────────────────────────────────
     list_box = tk.Frame(content, bg=bg)
     list_box.pack(fill=tk.BOTH, expand=True)
@@ -214,11 +335,79 @@ def render(parent, *, callbacks=None):
     nav_frame = tk.Frame(content, bg=bg)
 
     # ── helpers ───────────────────────────────────────────────────────
+    def _update_mes_nav():
+        m    = state["mes"]
+        hoje = _date_cls.today().replace(day=1)
+        txt  = f"{_MESES_PT[m.month - 1]} {m.year}"
+        if m == hoje:
+            txt += "  ●"
+        _mes_lbl.configure(text=txt)
+
+    def _go_mes(delta):
+        m     = state["mes"]
+        month = m.month + delta
+        year  = m.year
+        while month > 12: month -= 12; year += 1
+        while month < 1:  month += 12; year -= 1
+        state["mes"]  = _date_cls(year, month, 1)
+        state["page"] = 0
+        _refresh()
+
+    def _go_hoje():
+        state["mes"]  = _date_cls.today().replace(day=1)
+        state["page"] = 0
+        _refresh()
+
+    def _quick_status(oracao_id, novo_status):
+        from core.prayers import atualizar_status_oracao
+        from core.activities import registrar_log
+
+        kwargs = {}
+        if novo_status == "Respondida":
+            ok, comment = _ask_comment(
+                content,
+                title="Marcar como Respondida",
+                field_label="Testemunho ou como a oração foi atendida",
+                confirm_text="Confirmar",
+                confirm_kind="success",
+            )
+            if not ok:
+                return
+            kwargs["testemunho"] = comment
+        elif novo_status == "Arquivada":
+            ok, comment = _ask_comment(
+                content,
+                title="Arquivar oração",
+                field_label="Motivo ou comentário de arquivamento",
+                confirm_text="Arquivar",
+                confirm_kind="ghost",
+            )
+            if not ok:
+                return
+            kwargs["observacoes"] = comment
+
+        atualizar_status_oracao(oracao_id, novo_status, **kwargs)
+        if current_user_id:
+            registrar_log(current_user_id,
+                          f"Alterou status de oração ID {oracao_id} para '{novo_status}'")
+        _refresh()
+
+    def _sort_list(rows):
+        s = state["sort"]
+        if s == "data_asc":
+            return sorted(rows, key=lambda r: r["data_cadastro"] or "")
+        if s == "categoria":
+            return sorted(rows, key=lambda r: (r["categoria"] or "").lower())
+        if s == "nome":
+            return sorted(rows, key=lambda r: (r["solicitante_nome"] or "").lower())
+        return sorted(rows, key=lambda r: r["data_cadastro"] or "", reverse=True)
+
     def _load_all():
         try:
             from core.prayers import listar_oracoes
             cat = None if state["categoria"] == "Todas" else state["categoria"]
-            return list(listar_oracoes(categoria=cat))
+            m   = state["mes"]
+            return list(listar_oracoes(categoria=cat, ano=m.year, mes=m.month))
         except Exception:
             return []
 
@@ -265,6 +454,8 @@ def render(parent, *, callbacks=None):
                         (lambda _id=oid: callbacks["edit_prayer"](_id)),
                 on_delete=callbacks.get("delete_prayer") and
                           (lambda _id=oid: callbacks["delete_prayer"](_id)),
+                on_respond=(lambda _id=oid: _quick_status(_id, "Respondida")),
+                on_archive=(lambda _id=oid: _quick_status(_id, "Arquivada")),
             )
             card.pack(fill=tk.X, pady=(0, SPACING[2]))
             if i < len(page_items) - 1:
@@ -298,10 +489,11 @@ def render(parent, *, callbacks=None):
         content.scroll_top()
 
     def _refresh():
+        _update_mes_nav()
         rows        = _load_all()
-        ativas      = [r for r in rows if r["status"] == "Ativa"]
-        respondidas = [r for r in rows if r["status"] == "Respondida"]
-        arquivadas  = [r for r in rows if r["status"] == "Arquivada"]
+        ativas      = _sort_list([r for r in rows if r["status"] == "Ativa"])
+        respondidas = _sort_list([r for r in rows if r["status"] == "Respondida"])
+        arquivadas  = _sort_list([r for r in rows if r["status"] == "Arquivada"])
         state["lists"] = {"ativas": ativas, "respondidas": respondidas,
                           "arquivadas": arquivadas}
 

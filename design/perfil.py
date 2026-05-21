@@ -141,37 +141,6 @@ class PerfilMenu:
         card = tk.Frame(win, bg=bg)
         card.pack(padx=1, pady=1)
 
-        # ── Cabeçalho ────────────────────────────────────────────────
-        hdr = tk.Frame(card, bg=bg)
-        hdr.pack(fill=tk.X, padx=SPACING[3], pady=(SPACING[3], SPACING[2]))
-
-        nivel = self.user.get("nivel", "")
-        _avatar(hdr, self.user["nome"], nivel, 36, bg
-                ).pack(side=tk.LEFT, padx=(0, SPACING[2]))
-
-        info = tk.Frame(hdr, bg=bg)
-        info.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        tk.Label(info, text=self.user["nome"],
-                 font=FONTS["body_strong"],
-                 bg=bg, fg=COLORS["text"]
-                 ).pack(anchor=tk.W)
-
-        badge_row = tk.Frame(info, bg=bg)
-        badge_row.pack(anchor=tk.W, pady=(2, 0))
-        nc = _nivel_color(nivel)
-        tk.Label(badge_row, text="●",
-                 font=(FONTS["body"][0], 7),
-                 bg=bg, fg=nc
-                 ).pack(side=tk.LEFT, padx=(0, 3))
-        tk.Label(badge_row, text=nivel.upper(),
-                 font=FONTS["tiny"],
-                 bg=bg, fg=COLORS["text_muted"]
-                 ).pack(side=tk.LEFT)
-
-        # ── Separador ─────────────────────────────────────────────────
-        tk.Frame(card, bg=COLORS["divider"], height=1).pack(fill=tk.X)
-
         # ── Itens ─────────────────────────────────────────────────────
         self._item(card, "Ver perfil",     "person", self._open_modal)
         self._item(card, "Alterar perfil", "edit",   self._do_edit)

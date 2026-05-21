@@ -17,7 +17,7 @@ try:
 except ImportError:
     _API_KEY = "sua-chave-aqui"
 _SESSION  = "default"
-_TIMEOUT  = 10
+_TIMEOUT  = 4
 
 
 def _detectar_url():

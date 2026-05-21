@@ -102,6 +102,25 @@ def listar_status_atividade():
     return ["Planejado", "Em Andamento", "Concluído", "Cancelado", "Adiado"]
 
 
+def auto_concluir_passadas():
+    """Marca como Concluído atividades cujo prazo já expirou (data_fim < hoje)."""
+    from datetime import date
+    hoje = date.today().isoformat()
+    conn = get_connection()
+    try:
+        conn.execute("""
+            UPDATE atividades
+            SET status = 'Concluído', atualizado_em = CURRENT_TIMESTAMP
+            WHERE status IN ('Planejado', 'Em Andamento')
+              AND COALESCE(data_fim, data_inicio) < ?
+        """, (hoje,))
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+
 def registrar_log(usuario_id, acao):
     conn = get_connection()
     try:
