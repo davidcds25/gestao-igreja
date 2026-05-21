@@ -142,13 +142,13 @@ def open_user_form(root, *, uid=None, on_save=None, current_user_id=None):
 
         def _on_delete():
             deletar_usuario(usuario["id"])
-            if on_save:
-                on_save()
 
         result = UserModal(root, mode="edit", initial=initial,
                            on_save=_on_save, on_delete=_on_delete).show()
         if result and result.get("_deleted"):
             messagebox.showinfo("Excluído", "Usuário excluído com sucesso.", parent=root)
+            if on_save:
+                on_save()
         elif result:
             messagebox.showinfo("Salvo", "Dados do usuário atualizados com sucesso.", parent=root)
     else:

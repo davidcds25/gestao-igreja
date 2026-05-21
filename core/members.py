@@ -173,27 +173,29 @@ def crescimento_mensal(ano: int = None) -> dict:
         ano = datetime.now().year
 
     conn = get_connection()
-    cur  = conn.cursor()
+    try:
+        cur  = conn.cursor()
 
-    cur.execute("""
-        SELECT CAST(strftime('%m', data_cadastro) AS INTEGER) AS mes,
-               status,
-               COUNT(*) AS total
-        FROM membros
-        WHERE strftime('%Y', data_cadastro) = ?
-        GROUP BY mes, status
-        ORDER BY mes
-    """, (str(ano),))
-    rows = cur.fetchall()
+        cur.execute("""
+            SELECT CAST(strftime('%m', data_cadastro) AS INTEGER) AS mes,
+                   status,
+                   COUNT(*) AS total
+            FROM membros
+            WHERE strftime('%Y', data_cadastro) = ?
+            GROUP BY mes, status
+            ORDER BY mes
+        """, (str(ano),))
+        rows = cur.fetchall()
 
-    cur.execute("""
-        SELECT DISTINCT CAST(strftime('%Y', data_cadastro) AS INTEGER) AS ano
-        FROM membros
-        WHERE data_cadastro IS NOT NULL
-        ORDER BY ano DESC
-    """)
-    anos = [r["ano"] for r in cur.fetchall() if r["ano"]]
-    conn.close()
+        cur.execute("""
+            SELECT DISTINCT CAST(strftime('%Y', data_cadastro) AS INTEGER) AS ano
+            FROM membros
+            WHERE data_cadastro IS NOT NULL
+            ORDER BY ano DESC
+        """)
+        anos = [r["ano"] for r in cur.fetchall() if r["ano"]]
+    finally:
+        conn.close()
 
     membros    = [0] * 12
     visitantes = [0] * 12

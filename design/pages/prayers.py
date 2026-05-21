@@ -105,7 +105,7 @@ def _prayer_card(parent, oracao, *, on_edit=None, on_delete=None):
              bg=bg, fg=COLORS["text"]
              ).pack(side=tk.LEFT)
 
-    membro_nome = oracao["membro_nome"] if "membro_nome" in oracao else None
+    membro_nome = oracao["membro_nome"]
     if membro_nome and membro_nome != nome:
         tk.Label(mid, text=f"  ·  membro: {truncate(membro_nome, 25)}",
                  font=FONTS["small"],
