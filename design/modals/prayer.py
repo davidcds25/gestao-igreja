@@ -265,43 +265,46 @@ class PrayerModal(StyledDialog):
         self._build_contexto_select(f_ctx)
 
         # ── Status ────────────────────────────────────────────────────
-        f_status = modal_field(p, label="Status", required=True)
-        f_status.pack(fill=tk.X, pady=(0, sp[2]))
-        modal_pill_radio(f_status, var=self._status, options=[
-            {"value": s, "label": s, "tint": _STATUS_TINTS.get(s, COLORS["accent"])}
-            for s in STATUS
-        ]).pack(fill=tk.X)
+        # Status + comentarios condicionais (edit only)
+        if self.mode == "edit":
+            self._f_status = modal_field(p, label="Status", required=True)
+            self._f_status.pack(fill=tk.X, pady=(0, sp[2]))
+            modal_pill_radio(self._f_status, var=self._status, options=[
+                {"value": s, "label": s, "tint": _STATUS_TINTS.get(s, COLORS["accent"])}
+                for s in STATUS
+            ]).pack(fill=tk.X)
 
-        # Testemunho — visível apenas quando status = "Respondida"
-        self._f_test = modal_field(p, label="Como foi respondida")
-        _textarea(self._f_test, var=self._testemunho, rows=3,
-                  placeholder="Registre o testemunho ou como a oração foi atendida..."
-                  ).pack(fill=tk.X)
+            self._f_test = modal_field(p, label="Como foi respondida")
+            _textarea(self._f_test, var=self._testemunho, rows=3,
+                      placeholder="Registre o testemunho ou como a oração foi atendida..."
+                      ).pack(fill=tk.X)
 
-        def _toggle_testemunho(*_):
-            if self._status.get() == "Respondida":
-                self._f_test.pack(fill=tk.X, pady=(0, sp[3]))
-            else:
+            self._f_arch = modal_field(p, label="Comentário de arquivamento",
+                                       hint="opcional")
+            _textarea(self._f_arch, var=self._observacoes, rows=2,
+                      placeholder="Motivo ou observação sobre o arquivamento..."
+                      ).pack(fill=tk.X)
+
+            def _toggle_comment(*_):
                 self._f_test.pack_forget()
+                self._f_arch.pack_forget()
+                st = self._status.get()
+                if st == "Respondida":
+                    self._f_test.pack(fill=tk.X, pady=(0, sp[3]),
+                                      after=self._f_status)
+                elif st == "Arquivada":
+                    self._f_arch.pack(fill=tk.X, pady=(0, sp[3]),
+                                      after=self._f_status)
 
-        self._status.trace_add("write", _toggle_testemunho)
-        _toggle_testemunho()
+            self._status.trace_add("write", _toggle_comment)
+            _toggle_comment()
 
-        # ── Responsável ───────────────────────────────────────────────
         f_resp = modal_field(p, label="Responsável pelo acompanhamento",
                              hint="opcional")
         f_resp.pack(fill=tk.X, pady=(0, sp[3]))
         modal_input(f_resp, var=self._responsavel,
                     placeholder="Nome do pastor ou líder responsável",
                     icon="👤").pack(fill=tk.X)
-
-        # ── Observações internas ──────────────────────────────────────
-        f_obs = modal_field(p, label="Observações internas",
-                            hint="opcional — visível apenas pelos responsáveis")
-        f_obs.pack(fill=tk.X)
-        _textarea(f_obs, var=self._observacoes, rows=2,
-                  placeholder="Notas internas sobre o acompanhamento..."
-                  ).pack(fill=tk.X)
 
         # Espaço no final para o conteúdo não colar no footer
         tk.Frame(p, bg=bg, height=sp[4]).pack(fill=tk.X)
@@ -415,7 +418,7 @@ class PrayerModal(StyledDialog):
             "motivo":           self._motivo.get().strip(),
             "categoria":        self._categoria.get(),
             "privacidade":      self._privacidade.get(),
-            "status":           self._status.get(),
+            "status":           "Ativa" if self.mode == "new" else self._status.get(),
             "contexto":         self._contexto.get() or None,
             "responsavel":      self._responsavel.get().strip() or None,
             "testemunho":       self._testemunho.get().strip() or None,
@@ -427,8 +430,6 @@ class PrayerModal(StyledDialog):
             return "Informe o nome de quem pediu a oração."
         if not data["motivo"]:
             return "Descreva o pedido de oração."
-        if data["status"] == "Respondida" and not data["testemunho"]:
-            return "Registre como a oração foi respondida antes de salvar."
         return None
 
     def _handle_save(self):

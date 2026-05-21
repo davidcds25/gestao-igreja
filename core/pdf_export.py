@@ -255,20 +255,22 @@ def _export_aniversariantes(mes_idx: int, filepath: str):
     pdf.output(filepath)
 
 
-def _export_eventos(data: dict, filepath: str):
-    pdf = _PDF("Relatório de Eventos")
+def _export_eventos(ano: int, filepath: str):
+    from core.reports import eventos_por_ano
+    d          = eventos_por_ano(ano)
+    total      = d.get("total_events", 0)
+    realizadas = d.get("realizadas",   0)
+    planejadas = d.get("planejadas",   0)
+    canceladas = d.get("canceladas",   0)
+
+    pdf = _PDF(f"Relatório de Eventos — {ano}")
     pdf.add_page()
 
-    total      = data.get("total_events", 0)
-    realizadas = data.get("realizadas", 0)
-    planejadas = data.get("planejadas", 0)
-    canceladas = data.get("canceladas", 0)
-
-    pdf.section("Resumo de eventos")
+    pdf.section(f"Resumo de eventos — {ano}")
     pdf.kpis([
-        (total,      "Total de eventos",  "Registros no sistema"),
+        (total,      "Total de eventos",  f"no ano de {ano}"),
         (realizadas, "Realizados",        "Concluídos com sucesso"),
-        (planejadas, "Planejados",        "Agenda futura"),
+        (planejadas, "Planejados",        "Agendados / em andamento"),
         (canceladas, "Cancelados",        "Não realizados"),
     ])
 
@@ -277,6 +279,72 @@ def _export_eventos(data: dict, filepath: str):
     pdf.bar_h("Planejados", planejadas, max_ev, color=_ACE)
     pdf.bar_h("Realizados", realizadas, max_ev, color=_GRN)
     pdf.bar_h("Cancelados", canceladas, max_ev, color=_RED)
+
+    pdf.output(filepath)
+
+
+def _export_oracoes(ano: int, filepath: str):
+    from core.reports import oracoes_por_mes_ano
+    d           = oracoes_por_mes_ano(ano)
+    pendentes   = d["pendentes"]
+    respondidas = d["respondidas"]
+    arquivadas  = d["arquivadas"]
+
+    total_p = sum(pendentes)
+    total_r = sum(respondidas)
+    total_a = sum(arquivadas)
+    total   = total_p + total_r + total_a
+    taxa    = f"{round(total_r / total * 100)}%" if total > 0 else "-"
+
+    pdf = _PDF(f"Orações — {ano}", orientation="L")
+    pdf.add_page()
+
+    pdf.section(f"Resumo de orações — {ano}")
+    pdf.kpis([
+        (total,   "Total registrado", f"no ano de {ano}"),
+        (total_p, "Pendentes",        "aguardando resposta"),
+        (total_r, "Respondidas",      "orações atendidas"),
+        (taxa,    "Taxa de resposta", "respondidas ÷ total"),
+    ])
+
+    pdf.section("Detalhamento mensal")
+    cols = [
+        ("Mês",         28),
+        ("Pendentes",   35),
+        ("Respondidas", 35),
+        ("Arquivadas",  35),
+        ("Total",       30),
+    ]
+    pdf.thead(cols)
+
+    for i in range(12):
+        tot = pendentes[i] + respondidas[i] + arquivadas[i]
+        pdf.trow(
+            cols,
+            [_MESES[i], pendentes[i], respondidas[i], arquivadas[i], tot],
+            alt=(i % 2 == 1),
+        )
+
+    pdf.set_fill_color(*_NAV)
+    pdf.set_text_color(*_WH)
+    pdf.set_font("Helvetica", "B", 8)
+    for label, w in cols:
+        cell_val = {
+            "Mês": "TOTAL", "Pendentes": str(total_p),
+            "Respondidas": str(total_r), "Arquivadas": str(total_a),
+            "Total": str(total),
+        }[label]
+        pdf.cell(w, 6, cell_val, border=0, fill=True)
+    pdf.ln()
+
+    pdf.section("Distribuição mensal — barras")
+    max_bar = max(max(p + r + a for p, r, a in
+                      zip(pendentes, respondidas, arquivadas)), 1)
+    for i in range(12):
+        tot = pendentes[i] + respondidas[i] + arquivadas[i]
+        if tot:
+            pdf.bar_h(_MESES_ABR[i], tot, max_bar, color=_ACE,
+                      lbl_w=20, bar_max=220)
 
     pdf.output(filepath)
 
@@ -365,7 +433,9 @@ def _export_crescimento(ano: int, filepath: str):
 # ══════════════════════════════════════════════════════════════════════
 
 def export_tab(*, tab: str, data: dict, aniv_mes: int = None,
-               cresc_ano: int = None, filepath: str):
+               cresc_ano: int = None, eventos_ano: int = None,
+               oracoes_ano: int = None, filepath: str):
+    ano_atual = datetime.now().year
     if tab == "membros":
         _export_membros(data, filepath)
     elif tab == "aniversariantes":
@@ -374,10 +444,18 @@ def export_tab(*, tab: str, data: dict, aniv_mes: int = None,
             filepath,
         )
     elif tab == "eventos":
-        _export_eventos(data, filepath)
+        _export_eventos(
+            eventos_ano if eventos_ano is not None else ano_atual,
+            filepath,
+        )
     elif tab == "crescimento":
         _export_crescimento(
-            cresc_ano if cresc_ano is not None else datetime.now().year,
+            cresc_ano if cresc_ano is not None else ano_atual,
+            filepath,
+        )
+    elif tab == "oracoes":
+        _export_oracoes(
+            oracoes_ano if oracoes_ano is not None else ano_atual,
             filepath,
         )
     else:

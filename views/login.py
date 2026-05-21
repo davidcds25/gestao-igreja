@@ -588,16 +588,23 @@ class LoginWindow:
                 "grupo_casais": bool(m["grupo_casais"]),
             })
         root = self.root
+        uid  = self.current_user["id"]
         refresh = lambda: shell.navigate("membros")
         members.render(parent, members=mapped, callbacks={
-            "new_member":      lambda: open_member_form(root, on_save=refresh),
-            "edit_member":     lambda mid: open_member_form(root, member_id=mid, on_save=refresh),
-            "delete_member":   lambda m: confirm_delete_member(root, membro=m, on_confirm=refresh),
+            "new_member":      lambda: open_member_form(root, on_save=refresh,
+                                                        current_user_id=uid),
+            "edit_member":     lambda mid: open_member_form(root, member_id=mid,
+                                                            on_save=refresh,
+                                                            current_user_id=uid),
+            "delete_member":   lambda m: confirm_delete_member(root, membro=m,
+                                                               on_confirm=refresh,
+                                                               current_user_id=uid),
             "whatsapp_member": lambda _: shell.navigate("whatsapp"),
         })
 
     def _render_activities(self, parent, shell):
-        from core.activities import listar_atividades
+        from core.activities import listar_atividades, auto_concluir_passadas
+        auto_concluir_passadas()
         raw = listar_atividades()
         mapped = []
         for a in raw:
@@ -655,6 +662,7 @@ class LoginWindow:
     def _render_prayers(self, parent, shell):
         from core.prayers import obter_oracao
         root = self.root
+        uid  = self.current_user["id"]
         _content_ref = [None]
 
         def _smart_refresh():
@@ -669,12 +677,15 @@ class LoginWindow:
             solicitante = row["solicitante_nome"] if row else str(oid)
             confirm_delete_prayer(root, oracao_id=oid,
                                   solicitante=solicitante,
-                                  on_confirm=_smart_refresh)
+                                  on_confirm=_smart_refresh,
+                                  current_user_id=uid)
 
-        _content_ref[0] = prayers.render(parent, callbacks={
-            "new_prayer":    lambda: open_prayer_form(root, on_save=_smart_refresh),
-            "edit_prayer":   lambda oid: open_prayer_form(
-                root, oracao_id=oid, on_save=_smart_refresh),
+        _content_ref[0] = prayers.render(parent, current_user_id=uid, callbacks={
+            "new_prayer":    lambda: open_prayer_form(root, on_save=_smart_refresh,
+                                                      current_user_id=uid),
+            "edit_prayer":   lambda oid: open_prayer_form(root, oracao_id=oid,
+                                                          on_save=_smart_refresh,
+                                                          current_user_id=uid),
             "delete_prayer": _delete_prayer,
         })
 
@@ -693,46 +704,55 @@ class LoginWindow:
         shell.navigate("whatsapp")
 
     def _render_whatsapp(self, parent, shell):
-        connected = False
-        try:
-            from core.whatsapp import status_conexao
-            st, _ = status_conexao()
-            connected = (st == "open")
-        except Exception:
-            pass
-
+        import threading
         prefill = getattr(self, "_whatsapp_prefill", None)
         self._whatsapp_prefill = None
-
         root = self.root
 
-        def _qr_code():
-            from design.pages.whatsapp import open_qr_modal
-            open_qr_modal(root)
+        # Mostra placeholder imediatamente — sem bloquear a main thread
+        bg = COLORS["bg_dark"]
+        _check_lbl = tk.Label(parent, text="Verificando conexão WhatsApp…",
+                              font=FONTS["small"], bg=bg, fg=COLORS["text_muted"])
+        _check_lbl.pack(expand=True)
 
-        def _verificar():
-            shell.navigate("whatsapp")
+        def _build(connected):
+            if not _check_lbl.winfo_exists():
+                return  # user navigated away before check completed
+            _check_lbl.destroy()
 
-        def _toggle():
+            def _qr_code():
+                from design.pages.whatsapp import open_qr_modal
+                open_qr_modal(root)
+
+            def _toggle():
+                try:
+                    from core.whatsapp import criar_instancia, desconectar_sessao
+                    if connected:
+                        desconectar_sessao()
+                    else:
+                        criar_instancia()
+                except Exception as ex:
+                    from tkinter import messagebox
+                    messagebox.showerror("Erro", str(ex), parent=root)
+                shell.navigate("whatsapp")
+
+            whatsapp.render(parent, connected=connected, callbacks={
+                "qr_code":           _qr_code,
+                "verificar":         lambda: shell.navigate("whatsapp"),
+                "toggle_connection": _toggle,
+            }, prefill=prefill)
+
+        def _check():
+            connected = False
             try:
-                from core.whatsapp import criar_instancia, desconectar_sessao
-                if connected:
-                    desconectar_sessao()
-                else:
-                    criar_instancia()
-            except Exception as ex:
-                from tkinter import messagebox
-                messagebox.showerror("Erro", str(ex), parent=root)
-            shell.navigate("whatsapp")
+                from core.whatsapp import status_conexao
+                st, _ = status_conexao()
+                connected = (st == "open")
+            except Exception:
+                pass
+            parent.after(0, lambda: _build(connected))
 
-        callbacks = {
-            "qr_code":          _qr_code,
-            "verificar":        _verificar,
-            "toggle_connection": _toggle,
-        }
-
-        whatsapp.render(parent, connected=connected,
-                        callbacks=callbacks, prefill=prefill)
+        threading.Thread(target=_check, daemon=True).start()
 
     def _render_users(self, parent, shell):
         from core.users import listar_usuarios
@@ -751,15 +771,22 @@ class LoginWindow:
                 "color": _USER_LEVEL_COLORS.get(nivel, _MEMBER_COLORS[i % len(_MEMBER_COLORS)]),
             })
         root    = self.root
+        cur_uid = self.current_user["id"]
         refresh = lambda: shell.navigate("usuarios")
         users.render(parent, users=mapped, callbacks={
-            "new_user":       lambda: open_user_form(root, on_save=refresh),
+            "new_user":       lambda: open_user_form(root, on_save=refresh,
+                                                     current_user_id=cur_uid),
             "edit_user":      lambda uid: open_user_form(root, uid=uid, on_save=refresh,
-                                                         current_user_id=self.current_user["id"]),
+                                                         current_user_id=cur_uid),
             "reset_password": lambda uid, name: open_reset_password_form(
-                root, uid=uid, username=name, on_save=refresh),
-            "toggle_active":  lambda uid: toggle_user_active(uid=uid, root=root, on_done=refresh),
-            "delete_user":    lambda u: confirm_delete_user(root, usuario=u, on_confirm=refresh),
+                root, uid=uid, username=name, on_save=refresh,
+                current_user_id=cur_uid),
+            "toggle_active":  lambda uid: toggle_user_active(uid=uid, root=root,
+                                                              on_done=refresh,
+                                                              current_user_id=cur_uid),
+            "delete_user":    lambda u: confirm_delete_user(root, usuario=u,
+                                                            on_confirm=refresh,
+                                                            current_user_id=cur_uid),
         })
 
     def _render_reports(self, parent):

@@ -27,9 +27,11 @@ def render(parent, *, data=None, callbacks=None):
 
     # Estado compartilhado para exportação
     export_state = {
-        "tab":      "membros",
-        "aniv_mes": datetime.now().month - 1,
-        "cresc_ano": datetime.now().year,
+        "tab":         "membros",
+        "aniv_mes":    datetime.now().month - 1,
+        "cresc_ano":   datetime.now().year,
+        "eventos_ano": datetime.now().year,
+        "oracoes_ano": datetime.now().year,
     }
 
     hdr = screen_header(
@@ -57,6 +59,8 @@ def render(parent, *, data=None, callbacks=None):
                 data=data,
                 aniv_mes=export_state["aniv_mes"],
                 cresc_ano=export_state["cresc_ano"],
+                eventos_ano=export_state["eventos_ano"],
+                oracoes_ano=export_state["oracoes_ano"],
                 filepath=path,
             )
             import os, sys, subprocess
@@ -97,9 +101,11 @@ def render(parent, *, data=None, callbacks=None):
                                     on_congrats=callbacks.get("send_birthday"),
                                     export_state=export_state)
         elif tab == "eventos":
-            _render_eventos(body, data)
+            _render_eventos(body, export_state=export_state)
         elif tab == "crescimento":
             _render_crescimento(body, export_state=export_state)
+        elif tab == "oracoes":
+            _render_oracoes(body, export_state=export_state)
         content.scroll_top()
 
     tabs_widget = build_tabs(
@@ -109,6 +115,7 @@ def render(parent, *, data=None, callbacks=None):
             ("aniversariantes", "🎂  Aniversariantes", None),
             ("eventos",         "📋  Eventos",        None),
             ("crescimento",     "📈  Crescimento",    None),
+            ("oracoes",         "🙏  Orações",        None),
         ],
         value="membros",
         on_change=_show,
@@ -316,36 +323,106 @@ def _render_aniversariantes(parent, *, on_congrats=None, export_state=None):
 
 
 # ─── ABA: EVENTOS ─────────────────────────────────────────────────
-def _render_eventos(parent, data):
-    bg = parent["bg"]
-    row = tk.Frame(parent, bg=bg)
-    row.pack(fill=tk.X, pady=(0, SPACING[6]))
-    for c in range(4):
-        row.columnconfigure(c, weight=1, uniform="ev")
+def _render_eventos(parent, *, export_state=None):
+    from datetime import datetime
+    from core.reports import eventos_por_ano
 
-    total_ev    = data.get("total_events",  0)
-    realizadas  = data.get("realizadas",    0)
-    planejadas  = data.get("planejadas",    0)
-    canceladas  = data.get("canceladas",    0)
+    bg        = parent["bg"]
+    ano_atual = datetime.now().year
+    state     = {"ano": ano_atual, "data": None}
 
-    stats = [
-        (total_ev,   "Total de Eventos", "Nos últimos 12 meses",   COLORS["text"]),
-        (realizadas, "Realizados",       "Concluídos com sucesso", COLORS["success"]),
-        (planejadas, "Planejados",       "Agenda futura",          COLORS["accent"]),
-        (canceladas, "Cancelados",       "Não aconteceram",        COLORS["danger"]),
-    ]
-    for i, (v, l, s, c) in enumerate(stats):
-        cell = tk.Frame(row, bg=bg)
-        cell.grid(row=0, column=i, sticky="nsew",
-                  padx=(0 if i == 0 else SPACING[1],
-                        0 if i == 3 else SPACING[1]))
-        big_stat(cell, value=v, label=l, sub=s, color=c).pack(fill=tk.BOTH, expand=True)
+    top_bar       = tk.Frame(parent, bg=bg)
+    top_bar.pack(fill=tk.X, pady=(0, SPACING[4]))
 
-    bar_chart(parent, title="Distribuição por status", data=[
-        ("Planejados", max(planejadas, 0),  COLORS["accent"]),
-        ("Realizados", max(realizadas, 0),  COLORS["success"]),
-        ("Cancelados", max(canceladas, 0),  COLORS["danger"]),
-    ]).pack(fill=tk.X)
+    kpi_container = tk.Frame(parent, bg=bg)
+    kpi_container.pack(fill=tk.X, pady=(0, SPACING[6]))
+
+    chart_container = tk.Frame(parent, bg=bg)
+    chart_container.pack(fill=tk.X)
+
+    def _load(ano):
+        try:
+            return eventos_por_ano(ano)
+        except Exception:
+            return {"ano": ano, "total_events": 0,
+                    "realizadas": 0, "planejadas": 0, "canceladas": 0,
+                    "anos_disponiveis": [ano_atual]}
+
+    def _refresh(ano):
+        state["ano"]  = ano
+        state["data"] = _load(ano)
+        if export_state is not None:
+            export_state["eventos_ano"] = ano
+        _render_top_bar()
+        _render_kpis()
+        _render_chart()
+
+    def _render_top_bar():
+        for w in top_bar.winfo_children():
+            w.destroy()
+        tk.Label(top_bar, text="Eventos por ano",
+                 font=FONTS["subtitle"],
+                 bg=bg, fg=COLORS["text"]).pack(side=tk.LEFT)
+
+        anos = list(state["data"]["anos_disponiveis"]) if state["data"] else [ano_atual]
+        if ano_atual not in anos:
+            anos = [ano_atual] + anos
+
+        btn_frame = tk.Frame(top_bar, bg=bg)
+        btn_frame.pack(side=tk.RIGHT)
+        for a in sorted(anos):
+            ativo = (a == state["ano"])
+            lbl = tk.Label(btn_frame, text=str(a),
+                           font=FONTS["small_bold"],
+                           bg=COLORS["accent"] if ativo else COLORS["bg_card"],
+                           fg=COLORS["bg_dark"] if ativo else COLORS["text_dim"],
+                           padx=SPACING[3], pady=SPACING[1] + 2,
+                           highlightbackground=COLORS["divider"],
+                           highlightthickness=1,
+                           cursor="hand2")
+            lbl.pack(side=tk.LEFT, padx=2)
+            lbl.bind("<Button-1>", lambda e, _a=a: _refresh(_a))
+
+    def _render_kpis():
+        for w in kpi_container.winfo_children():
+            w.destroy()
+        for c in range(4):
+            kpi_container.columnconfigure(c, weight=1, uniform="ev")
+        d          = state["data"] or {}
+        total_ev   = d.get("total_events", 0)
+        realizadas = d.get("realizadas",   0)
+        planejadas = d.get("planejadas",   0)
+        canceladas = d.get("canceladas",   0)
+        stats = [
+            (total_ev,   "Total de Eventos", f"no ano de {state['ano']}",  COLORS["text"]),
+            (realizadas, "Realizados",        "Concluídos com sucesso",     COLORS["success"]),
+            (planejadas, "Planejados",        "Agendados / em andamento",   COLORS["accent"]),
+            (canceladas, "Cancelados",        "Não aconteceram",            COLORS["danger"]),
+        ]
+        for i, (v, l, s, c) in enumerate(stats):
+            cell = tk.Frame(kpi_container, bg=bg)
+            cell.grid(row=0, column=i, sticky="nsew",
+                      padx=(0 if i == 0 else SPACING[1],
+                            0 if i == 3 else SPACING[1]))
+            big_stat(cell, value=v, label=l, sub=s, color=c).pack(fill=tk.BOTH, expand=True)
+
+    def _render_chart():
+        for w in chart_container.winfo_children():
+            w.destroy()
+        d          = state["data"] or {}
+        realizadas = d.get("realizadas", 0)
+        planejadas = d.get("planejadas", 0)
+        canceladas = d.get("canceladas", 0)
+        bar_chart(chart_container, title="Distribuição por status", data=[
+            ("Planejados", max(planejadas, 0), COLORS["accent"]),
+            ("Realizados", max(realizadas, 0), COLORS["success"]),
+            ("Cancelados", max(canceladas, 0), COLORS["danger"]),
+        ]).pack(fill=tk.X)
+
+    state["data"] = _load(ano_atual)
+    _render_top_bar()
+    _render_kpis()
+    _render_chart()
 
 
 # ─── ABA: CRESCIMENTO ─────────────────────────────────────────────
@@ -555,6 +632,216 @@ def _render_crescimento(parent, *, export_state=None):
             (COLOR_A, "Afastados"),
         ]
         for color, label in items:
+            dot = tk.Canvas(legend_row, width=10, height=10,
+                            bg=bg, highlightthickness=0)
+            dot.create_oval(0, 0, 10, 10, fill=color, outline="")
+            dot.pack(side=tk.LEFT, padx=(0, SPACING[1]))
+            tk.Label(legend_row, text=label,
+                     font=FONTS["small"],
+                     bg=bg, fg=COLORS["text_muted"]
+                     ).pack(side=tk.LEFT, padx=(0, SPACING[4]))
+
+    # ── primeiro carregamento ──────────────────────────────────────
+    state["data"] = _load(ano_atual)
+    _render_top_bar()
+    _render_kpis()
+    _render_chart()
+    _render_legend()
+
+
+# ─── ABA: ORAÇÕES ─────────────────────────────────────────────────
+_MESES_OR = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+             "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+
+
+def _render_oracoes(parent, *, export_state=None):
+    from datetime import datetime
+    from core.reports import oracoes_por_mes_ano
+
+    bg        = parent["bg"]
+    ano_atual = datetime.now().year
+    state     = {"ano": ano_atual, "data": None}
+
+    COLOR_P = COLORS["accent"]       # Pendentes
+    COLOR_R = COLORS["success"]      # Respondidas
+    COLOR_A = COLORS.get("text_muted", "#888888")  # Arquivadas
+
+    CHART_H   = 220
+    PAD_L     = 48
+    PAD_R     = 16
+    PAD_T     = 16
+    PAD_B     = 36
+    BAR_GAP   = 6
+    BAR_INNER = 2
+
+    # ── containers ────────────────────────────────────────────────
+    top_bar    = tk.Frame(parent, bg=bg)
+    top_bar.pack(fill=tk.X, pady=(0, SPACING[4]))
+
+    kpi_row    = tk.Frame(parent, bg=bg)
+    kpi_row.pack(fill=tk.X, pady=(0, SPACING[5]))
+
+    chart_card = tk.Frame(parent, bg=COLORS["bg_card"],
+                          highlightbackground=COLORS["divider"],
+                          highlightthickness=1)
+    chart_card.pack(fill=tk.X)
+
+    legend_row = tk.Frame(parent, bg=bg)
+    legend_row.pack(fill=tk.X, pady=(SPACING[3], 0))
+
+    # ── helpers ───────────────────────────────────────────────────
+    def _load(ano):
+        try:
+            return oracoes_por_mes_ano(ano)
+        except Exception:
+            return {"ano": ano, "pendentes": [0]*12,
+                    "respondidas": [0]*12, "arquivadas": [0]*12,
+                    "anos_disponiveis": [ano_atual]}
+
+    def _refresh(ano):
+        state["ano"]  = ano
+        state["data"] = _load(ano)
+        if export_state is not None:
+            export_state["oracoes_ano"] = ano
+        _render_top_bar()
+        _render_kpis()
+        _render_chart()
+        _render_legend()
+
+    # ── top bar: seletor de ano ────────────────────────────────────
+    def _render_top_bar():
+        for w in top_bar.winfo_children():
+            w.destroy()
+        tk.Label(top_bar, text="Orações por mês",
+                 font=FONTS["subtitle"],
+                 bg=bg, fg=COLORS["text"]).pack(side=tk.LEFT)
+
+        anos = list(state["data"]["anos_disponiveis"]) if state["data"] else [ano_atual]
+        if ano_atual not in anos:
+            anos = [ano_atual] + anos
+
+        btn_frame = tk.Frame(top_bar, bg=bg)
+        btn_frame.pack(side=tk.RIGHT)
+        for a in sorted(anos):
+            ativo = (a == state["ano"])
+            lbl = tk.Label(btn_frame, text=str(a),
+                           font=FONTS["small_bold"],
+                           bg=COLORS["accent"] if ativo else COLORS["bg_card"],
+                           fg=COLORS["bg_dark"] if ativo else COLORS["text_dim"],
+                           padx=SPACING[3], pady=SPACING[1] + 2,
+                           highlightbackground=COLORS["divider"],
+                           highlightthickness=1,
+                           cursor="hand2")
+            lbl.pack(side=tk.LEFT, padx=2)
+            lbl.bind("<Button-1>", lambda e, _a=a: _refresh(_a))
+
+    # ── KPIs ──────────────────────────────────────────────────────
+    def _render_kpis():
+        for w in kpi_row.winfo_children():
+            w.destroy()
+        d = state["data"] or {}
+        p = d.get("pendentes",   [0]*12)
+        r = d.get("respondidas", [0]*12)
+        a = d.get("arquivadas",  [0]*12)
+
+        total_p = sum(p)
+        total_r = sum(r)
+        total_a = sum(a)
+        total   = total_p + total_r + total_a
+
+        taxa = f"{round(total_r / total * 100)}%" if total > 0 else "—"
+
+        kpis = [
+            (total,   "Total registrado",  f"no ano de {state['ano']}",  COLORS["text"]),
+            (total_p, "Pendentes",         "ainda aguardando resposta",  COLOR_P),
+            (total_r, "Respondidas",       "orações atendidas",          COLOR_R),
+            (taxa,    "Taxa de resposta",  "respondidas ÷ total",        COLORS["success"]),
+        ]
+        for c in range(4):
+            kpi_row.columnconfigure(c, weight=1, uniform="okpi")
+        for i, (val, lbl, sub, cor) in enumerate(kpis):
+            cell = tk.Frame(kpi_row, bg=bg)
+            cell.grid(row=0, column=i, sticky="nsew",
+                      padx=(0 if i == 0 else SPACING[1],
+                            0 if i == 3 else SPACING[1]))
+            big_stat(cell, value=val, label=lbl, sub=sub,
+                     color=cor).pack(fill=tk.BOTH, expand=True)
+
+    # ── Canvas chart ──────────────────────────────────────────────
+    def _render_chart():
+        for w in chart_card.winfo_children():
+            w.destroy()
+
+        cv = tk.Canvas(chart_card, bg=COLORS["bg_card"],
+                       highlightthickness=0, height=CHART_H)
+        cv.pack(fill=tk.X, padx=SPACING[4], pady=SPACING[4])
+
+        def _draw(event=None):
+            cv.delete("all")
+            W = cv.winfo_width()
+            if W < 50:
+                return
+
+            d = state["data"] or {}
+            p = d.get("pendentes",   [0]*12)
+            r = d.get("respondidas", [0]*12)
+            a = d.get("arquivadas",  [0]*12)
+
+            draw_w = W - PAD_L - PAD_R
+            draw_h = CHART_H - PAD_T - PAD_B
+            slot_w = draw_w / 12
+            n_bars = 3
+            bar_w  = max(4, (slot_w - BAR_GAP * 2) / n_bars - BAR_INNER)
+
+            max_val = max(max(p), max(r), max(a), 1)
+            step    = max(1, max_val // 5)
+            y_max   = (max_val // step + 1) * step
+
+            for tick in range(0, y_max + 1, step):
+                y = PAD_T + draw_h - (tick / y_max) * draw_h
+                cv.create_line(PAD_L, y, W - PAD_R, y,
+                               fill=COLORS["divider"], dash=(4, 4))
+                cv.create_text(PAD_L - 4, y, text=str(tick),
+                               font=(FONTS["small"][0], 8),
+                               fill=COLORS["text_muted"], anchor="e")
+
+            for i in range(12):
+                x_center = PAD_L + (i + 0.5) * slot_w
+                group_w  = bar_w * n_bars + BAR_INNER * (n_bars - 1)
+                x_start  = x_center - group_w / 2
+
+                for j, (val, color) in enumerate(
+                        [(p[i], COLOR_P), (r[i], COLOR_R), (a[i], COLOR_A)]):
+                    x0 = x_start + j * (bar_w + BAR_INNER)
+                    x1 = x0 + bar_w
+                    if val > 0:
+                        bh = (val / y_max) * draw_h
+                        y0 = PAD_T + draw_h - bh
+                        cv.create_rectangle(x0, y0, x1, PAD_T + draw_h,
+                                            fill=color, outline="", width=0)
+                        if bh > 14:
+                            cv.create_text((x0 + x1) / 2, y0 + 6,
+                                           text=str(val),
+                                           font=(FONTS["small"][0], 8, "bold"),
+                                           fill="#ffffff")
+
+                cv.create_text(x_center, CHART_H - PAD_B + 8,
+                               text=_MESES_OR[i],
+                               font=(FONTS["small"][0], 8),
+                               fill=COLORS["text_muted"])
+
+        cv.bind("<Configure>", _draw)
+        cv.after(50, _draw)
+
+    # ── Legenda ───────────────────────────────────────────────────
+    def _render_legend():
+        for w in legend_row.winfo_children():
+            w.destroy()
+        for color, label in [
+            (COLOR_P, "Pendentes"),
+            (COLOR_R, "Respondidas"),
+            (COLOR_A, "Arquivadas"),
+        ]:
             dot = tk.Canvas(legend_row, width=10, height=10,
                             bg=bg, highlightthickness=0)
             dot.create_oval(0, 0, 10, 10, fill=color, outline="")

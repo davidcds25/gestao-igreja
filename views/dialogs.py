@@ -28,12 +28,23 @@ def _center_win(win, root, w, h):
 # MEMBROS
 # ══════════════════════════════════════════════════════════════════════════
 
-def open_member_form(root, *, member_id=None, on_save=None):
+def open_member_form(root, *, member_id=None, on_save=None, current_user_id=None):
     from design.modals.member import MemberModal
-    MemberModal(root, member_id=member_id, on_save=on_save)
+
+    def _on_save_logged():
+        if current_user_id:
+            from core.activities import registrar_log
+            if member_id:
+                registrar_log(current_user_id, f"Editou membro (ID: {member_id})")
+            else:
+                registrar_log(current_user_id, "Criou novo membro")
+        if on_save:
+            on_save()
+
+    MemberModal(root, member_id=member_id, on_save=_on_save_logged)
 
 
-def confirm_delete_member(root, *, membro, on_confirm=None):
+def confirm_delete_member(root, *, membro, on_confirm=None, current_user_id=None):
     from core.members import deletar_membro
     ok = messagebox.askyesno(
         "Confirmar exclusão",
@@ -43,6 +54,10 @@ def confirm_delete_member(root, *, membro, on_confirm=None):
     )
     if ok:
         deletar_membro(membro["id"])
+        if current_user_id:
+            from core.activities import registrar_log
+            registrar_log(current_user_id,
+                          f"Excluiu membro: '{membro['nome']}' (ID: {membro['id']})")
         if on_confirm:
             on_confirm()
 
@@ -136,12 +151,20 @@ def open_user_form(root, *, uid=None, on_save=None, current_user_id=None):
                 return err
             if bool(data["ativo"]) != original_ativo:
                 alternar_ativo(usuario["id"])
+            if current_user_id:
+                from core.activities import registrar_log
+                registrar_log(current_user_id,
+                              f"Editou usuário: '{data['nome']}' (ID: {usuario['id']})")
             if on_save:
                 on_save()
             return None
 
         def _on_delete():
             deletar_usuario(usuario["id"])
+            if current_user_id:
+                from core.activities import registrar_log
+                registrar_log(current_user_id,
+                              f"Excluiu usuário: '{usuario['nome']}' (ID: {usuario['id']})")
 
         result = UserModal(root, mode="edit", initial=initial,
                            on_save=_on_save, on_delete=_on_delete).show()
@@ -153,9 +176,13 @@ def open_user_form(root, *, uid=None, on_save=None, current_user_id=None):
             messagebox.showinfo("Salvo", "Dados do usuário atualizados com sucesso.", parent=root)
     else:
         def _on_save(data):
-            _, err = criar_usuario(data["nome"], data["email"], data["senha"], data["nivel"])
+            new_id, err = criar_usuario(data["nome"], data["email"], data["senha"], data["nivel"])
             if err:
                 return err
+            if current_user_id:
+                from core.activities import registrar_log
+                registrar_log(current_user_id,
+                              f"Criou usuário: '{data['nome']}' ({data['nivel']})")
             if on_save:
                 on_save()
             return None
@@ -165,7 +192,7 @@ def open_user_form(root, *, uid=None, on_save=None, current_user_id=None):
             messagebox.showinfo("Salvo", "Usuário criado com sucesso.", parent=root)
 
 
-def open_reset_password_form(root, *, uid, username, on_save=None):
+def open_reset_password_form(root, *, uid, username, on_save=None, current_user_id=None):
     from core.users import redefinir_senha, obter_usuario
     from design.modals import PasswordResetModal
 
@@ -178,6 +205,10 @@ def open_reset_password_form(root, *, uid, username, on_save=None):
             redefinir_senha(uid, data["senha"])
         except Exception as exc:
             return str(exc)
+        if current_user_id:
+            from core.activities import registrar_log
+            registrar_log(current_user_id,
+                          f"Redefiniu senha do usuário: '{username}' (ID: {uid})")
         if on_save:
             on_save()
         return None
@@ -189,7 +220,7 @@ def open_reset_password_form(root, *, uid, username, on_save=None):
         messagebox.showinfo("Salvo", f"Senha de {username} redefinida com sucesso.", parent=root)
 
 
-def toggle_user_active(*, uid, root=None, on_done=None):
+def toggle_user_active(*, uid, root=None, on_done=None, current_user_id=None):
     from core.users import alternar_ativo, obter_usuario
     from design.modals import ask_confirm
 
@@ -216,11 +247,16 @@ def toggle_user_active(*, uid, root=None, on_done=None):
 
     if ok:
         alternar_ativo(uid)
+        if current_user_id:
+            from core.activities import registrar_log
+            acao = "Desativou" if ativo else "Reativou"
+            registrar_log(current_user_id,
+                          f"{acao} usuário: '{nome}' (ID: {uid})")
         if on_done:
             on_done()
 
 
-def confirm_delete_user(root, *, usuario, on_confirm=None):
+def confirm_delete_user(root, *, usuario, on_confirm=None, current_user_id=None):
     from core.users import deletar_usuario
     from design.modals import ask_confirm
     ok = ask_confirm(
@@ -234,6 +270,10 @@ def confirm_delete_user(root, *, usuario, on_confirm=None):
     )
     if ok:
         deletar_usuario(usuario["id"])
+        if current_user_id:
+            from core.activities import registrar_log
+            registrar_log(current_user_id,
+                          f"Excluiu usuário: '{usuario['nome']}' (ID: {usuario['id']})")
         if on_confirm:
             on_confirm()
         messagebox.showinfo("Excluído", f"Usuário '{usuario['nome']}' excluído com sucesso.", parent=root)
@@ -243,7 +283,7 @@ def confirm_delete_user(root, *, usuario, on_confirm=None):
 # ORAÇÕES
 # ══════════════════════════════════════════════════════════════════════════
 
-def open_prayer_form(root, *, oracao_id=None, on_save=None):
+def open_prayer_form(root, *, oracao_id=None, on_save=None, current_user_id=None):
     from core.prayers import criar_oracao, atualizar_oracao, obter_oracao
     from core.members import listar_membros
     from design.modals import PrayerModal
@@ -263,9 +303,10 @@ def open_prayer_form(root, *, oracao_id=None, on_save=None):
 
     def _on_save(data):
         try:
+            nome_sol = data["solicitante_nome"]
             if mode == "new":
                 criar_oracao(
-                    solicitante_nome=data["solicitante_nome"],
+                    solicitante_nome=nome_sol,
                     motivo=data["motivo"],
                     categoria=data["categoria"],
                     privacidade=data["privacidade"],
@@ -276,10 +317,14 @@ def open_prayer_form(root, *, oracao_id=None, on_save=None):
                     observacoes=data.get("observacoes"),
                     testemunho=data.get("testemunho"),
                 )
+                if current_user_id:
+                    from core.activities import registrar_log
+                    registrar_log(current_user_id,
+                                  f"Registrou oração de '{nome_sol}'")
             else:
                 atualizar_oracao(
                     oracao_id,
-                    solicitante_nome=data["solicitante_nome"],
+                    solicitante_nome=nome_sol,
                     motivo=data["motivo"],
                     categoria=data["categoria"],
                     privacidade=data["privacidade"],
@@ -290,6 +335,10 @@ def open_prayer_form(root, *, oracao_id=None, on_save=None):
                     observacoes=data.get("observacoes"),
                     testemunho=data.get("testemunho"),
                 )
+                if current_user_id:
+                    from core.activities import registrar_log
+                    registrar_log(current_user_id,
+                                  f"Editou oração de '{nome_sol}' (ID: {oracao_id})")
         except Exception as exc:
             return str(exc)
         if on_save:
@@ -300,6 +349,11 @@ def open_prayer_form(root, *, oracao_id=None, on_save=None):
         from core.prayers import deletar_oracao
         if oracao_id:
             deletar_oracao(oracao_id)
+            if current_user_id:
+                from core.activities import registrar_log
+                nome = initial.get("solicitante_nome") or str(oracao_id)
+                registrar_log(current_user_id,
+                              f"Excluiu oração de '{nome}' (ID: {oracao_id})")
         if on_save:
             on_save()
 
@@ -313,7 +367,8 @@ def open_prayer_form(root, *, oracao_id=None, on_save=None):
         messagebox.showinfo("Salvo", f"Oração {label} com sucesso.", parent=root)
 
 
-def confirm_delete_prayer(root, *, oracao_id, solicitante, on_confirm=None):
+def confirm_delete_prayer(root, *, oracao_id, solicitante, on_confirm=None,
+                          current_user_id=None):
     from core.prayers import deletar_oracao
     from design.modals import ask_confirm
     ok = ask_confirm(
@@ -325,5 +380,9 @@ def confirm_delete_prayer(root, *, oracao_id, solicitante, on_confirm=None):
     )
     if ok:
         deletar_oracao(oracao_id)
+        if current_user_id:
+            from core.activities import registrar_log
+            registrar_log(current_user_id,
+                          f"Excluiu oração de '{solicitante}' (ID: {oracao_id})")
         if on_confirm:
             on_confirm()

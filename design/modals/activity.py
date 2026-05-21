@@ -38,11 +38,76 @@ class ActivityModal(StyledModal):
 
         super().__init__(root, title=title, subtitle=subtitle)
 
-    # ── corpo ─────────────────────────────────────────────────────────
+    # ── posicionamento — janela próxima ao topo para não cortar rodapé ──
+
+    def _center_and_show(self):
+        self.update_idletasks()
+        w  = self.WIDTH
+        sh = self.winfo_screenheight()
+        sw = self.winfo_screenwidth()
+        # With a scroll canvas, winfo_reqheight() on self is tiny.
+        # Compute real height: (modal overhead) + (form content height).
+        if hasattr(self, '_scroll_canvas') and hasattr(self, '_form_frame'):
+            overhead = self.winfo_reqheight() - self._scroll_canvas.winfo_reqheight()
+            h = min(overhead + self._form_frame.winfo_reqheight(), int(sh * 0.88))
+        else:
+            h = min(self.winfo_reqheight(), int(sh * 0.88))
+        x  = (sw - w) // 2
+        y  = max(10, sh // 20)   # ~5 % do topo (≈54px em 1080p)
+        self.geometry(f"{w}x{h}+{x}+{y}")
+        self.deiconify()
+
+    # ── corpo com scroll — mesmo padrão do MemberModal ────────────────
 
     def _build_body(self, parent):
+        bg = COLORS["bg_dark"]
+
+        # Remove padding direito para scrollbar ficar rente à borda
+        parent.pack_configure(padx=(SPACING[6], 0))
+
+        sb = tk.Scrollbar(parent, orient=tk.VERTICAL)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        canvas = tk.Canvas(parent, bg=bg, highlightthickness=0, bd=0,
+                           yscrollincrement=20, yscrollcommand=sb.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True,
+                    padx=(0, SPACING[3]))
+        sb.configure(command=canvas.yview)
+
+        p = tk.Frame(canvas, bg=bg)
+        _wid = canvas.create_window((0, 0), window=p, anchor=tk.NW)
+
+        p.bind("<Configure>",
+               lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>",
+                    lambda e: canvas.itemconfig(_wid, width=e.width))
+
+        def _wheel(e):
+            canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+            return "break"  # consume event so Spinbox/DateEntry don't also handle it
+
+        def _bind_scroll(widget):
+            """Bind scroll wheel directly to every widget — widget-level bindings
+            fire before class-level ones (e.g. Spinbox) so break is respected."""
+            widget.bind("<MouseWheel>", _wheel)
+            for child in widget.winfo_children():
+                _bind_scroll(child)
+
+        self._build_form(p)
+
+        # Save refs for height calculation in _center_and_show
+        self._scroll_canvas = canvas
+        self._form_frame    = p
+
+        # Direct binding to canvas + every form widget (avoids bind_all/class conflicts)
+        canvas.bind("<MouseWheel>", _wheel)
+        _bind_scroll(p)
+
+    def _build_form(self, parent):
         at = self._at
         bg = COLORS["bg_dark"]
+        from datetime import date as _date
+        _min = _date.today() if not self._editing else None
 
         # ── SEÇÃO 1: INFORMAÇÕES BÁSICAS ──────────────────────────────
         section_label(parent, text="Informações Básicas").pack(
@@ -69,7 +134,8 @@ class ActivityModal(StyledModal):
         f_inicio = field(parent, label="Data e Hora de Início *")
         f_inicio.pack(fill=tk.X, pady=(0, SPACING[2]))
         self._get_inicio = self._date_time_row(f_inicio,
-                                               at["data_inicio"] if at else None)
+                                               at["data_inicio"] if at else None,
+                                               min_date=_min)
 
         self._has_fim = tk.BooleanVar(value=bool(at and at.get("data_fim")))
         self._fim_toggle_frame = tk.Frame(parent, bg=bg)
@@ -90,7 +156,8 @@ class ActivityModal(StyledModal):
         f_fim = field(self._fim_frame, label="Data e Hora de Término")
         f_fim.pack(fill=tk.X)
         self._get_fim = self._date_time_row(f_fim,
-                                            at.get("data_fim") if at else None)
+                                            at.get("data_fim") if at else None,
+                                            min_date=_min)
         if self._has_fim.get():
             self._fim_frame.pack(fill=tk.X, pady=(0, SPACING[2]),
                                  after=self._fim_toggle_frame)
@@ -118,11 +185,9 @@ class ActivityModal(StyledModal):
         _ga_options = ["(nenhum)"] + list(_GRUPOS) + ["Grupo de Casais"]
         _ga_inicial = (at.get("grupo_alvo") or "(nenhum)") if at else "(nenhum)"
 
-        # Em edição: mostra o status atual como informação (somente leitura).
-        # Mudanças de status acontecem pelos botões ✓ e ✗ na lista de atividades.
         _status_atual = (at.get("status") or "Planejado") if at else "Planejado"
-        _status_opts   = (["Planejado"] if not self._editing
-                          else sorted({_status_atual, "Planejado"}))
+        _status_opts  = (["Planejado"] if not self._editing
+                         else sorted({_status_atual, "Planejado"}))
         f_status = field(two_col, label="Status")
         f_status.grid(row=0, column=0, sticky="ew", padx=(0, SPACING[3]))
         self._status_cb = select(f_status, value=_status_atual, options=_status_opts)
@@ -144,7 +209,7 @@ class ActivityModal(StyledModal):
 
     # ── data/hora ─────────────────────────────────────────────────────
 
-    def _date_time_row(self, parent, initial_value=None):
+    def _date_time_row(self, parent, initial_value=None, min_date=None):
         bg = parent["bg"]
 
         try:
@@ -171,6 +236,9 @@ class ActivityModal(StyledModal):
         row.pack(fill=tk.X)
 
         if _HAS_CAL:
+            _cal_kwargs = {}
+            if min_date:
+                _cal_kwargs["mindate"] = min_date
             de = _DateEntry(
                 row, width=11, locale="pt_BR", date_pattern="yyyy-mm-dd",
                 background=COLORS["bg_card"], foreground=COLORS["text"],
@@ -179,6 +247,7 @@ class ActivityModal(StyledModal):
                 normalbackground=COLORS["bg_card"],
                 normalforeground=COLORS["text"],
                 font=FONTS["body"], cursor="hand2",
+                **_cal_kwargs,
             )
             de.pack(side=tk.LEFT, ipady=6, padx=(0, SPACING[3]))
             if date_init:
@@ -242,8 +311,6 @@ class ActivityModal(StyledModal):
                                  after=self._fim_toggle_frame)
         else:
             self._fim_frame.pack_forget()
-        self.update_idletasks()
-        self._recalc_height()
 
     # ── footer ────────────────────────────────────────────────────────
 
