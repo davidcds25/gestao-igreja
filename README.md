@@ -4,7 +4,9 @@ Aplicativo desktop para gestão de igrejas: membros, eventos, comunicação via 
 
 ## Funcionalidades
 
-- Login com autenticação segura (bcrypt), tela cheia automática e "lembrar este computador"
+- **Assistente de primeiro acesso**: detecta ausência de `config.py` e exibe wizard de configuração antes do login — sem precisar editar arquivos manualmente
+- Login com autenticação segura (bcrypt), tela cheia automática, "lembrar este computador" e exibição da versão atual (tag git)
+- **Log de erros automático**: exceções não tratadas são gravadas em `crash.log` ao lado do executável com timestamp, traceback completo e informações do sistema
 - Versículo do dia via API com fallback para base local (cache entre login e home)
 - Gerenciamento de usuários com níveis de acesso (somente Admin)
   - Modal redesenhado com avatar, medidor de força de senha, confirmação de ativação/desativação e feedback de sucesso
@@ -66,7 +68,8 @@ Projeto/
 │   ├── activities.py            # CRUD de atividades/eventos
 │   ├── verse.py                 # Versículo do dia (bible-api.com + fallback)
 │   ├── whatsapp.py              # Integração WAHA
-│   └── pdf_export.py            # Geração de relatórios em PDF (fpdf2)
+│   ├── pdf_export.py            # Geração de relatórios em PDF (fpdf2)
+│   └── crash_logger.py          # Log automático de erros → crash.log
 │
 ├── design/                      # Design system
 │   ├── ui/
@@ -92,20 +95,27 @@ Projeto/
 │
 ├── views/                       # Controladores
 │   ├── login.py                 # Shell principal, navegação, tela de login
+│   ├── setup.py                 # Wizard de configuração inicial (primeiro acesso)
 │   └── dialogs.py               # Ponto de entrada para os modais de CRUD
 │
 └── .claude/
     ├── WORKFLOW.md              # Fluxo completo de desenvolvimento e agentes
-    └── agents/                  # Agentes especializados do Claude Code
-        ├── qa.md
-        ├── commit.md
-        ├── code-review.md
-        ├── peer-review.md
-        ├── branch-pr.md
-        ├── merge-guard.md
-        ├── release.md
-        ├── deploy.md
-        └── design.md
+    ├── settings.json            # Hooks automáticos do Claude Code
+    ├── agents/                  # Agentes especializados do Claude Code
+    │   ├── qa.md
+    │   ├── commit.md
+    │   ├── code-review.md
+    │   ├── peer-review.md
+    │   ├── branch-pr.md
+    │   ├── merge-guard.md
+    │   ├── release.md
+    │   ├── deploy.md
+    │   ├── db-migration.md
+    │   └── design.md
+    └── hooks/                   # Scripts PowerShell de proteção automática
+        ├── guard-sensitive-files.ps1
+        ├── guard-main-push.ps1
+        └── remind-qa-after-edit.ps1
 ```
 
 ## Banco de Dados
@@ -341,6 +351,16 @@ git push origin --delete feat/nome-da-feature
 | 7 | `/deploy` | Build do .exe via PyInstaller (só no deploy) |
 
 > Consulte `.claude/WORKFLOW.md` para o diagrama completo e regras de branch.
+
+### Hooks automáticos
+
+O Claude Code executa automaticamente hooks de proteção a cada operação:
+
+| Hook | Proteção |
+|---|---|
+| `guard-sensitive-files` | Bloqueia `git add` com arquivos sensíveis (`config.py`, `*.db`, `user_prefs.json`) |
+| `guard-main-push` | Bloqueia push direto para `main` sem passar pelo fluxo de release |
+| `remind-qa-after-edit` | Lembra de rodar `/qa` após editar arquivos em `core/` |
 
 ## Compilar para Executável
 
