@@ -109,8 +109,8 @@ def _build_page(list_frame, nav_frame, members, callbacks, state):
     for i, m in enumerate(page_items):
         cell = tk.Frame(grid, bg=bg)
         cell.grid(row=i // 2, column=i % 2, sticky="nsew",
-                  padx=(0 if i % 2 == 0 else SPACING[2] // 2,
-                        SPACING[2] // 2 if i % 2 == 0 else 0),
+                  padx=(0 if i % 2 == 0 else SPACING[1],
+                        SPACING[1] if i % 2 == 0 else 0),
                   pady=SPACING[2])
         card_cbs = {
             "edit":     callbacks.get("edit_member") and
@@ -166,7 +166,7 @@ def render(parent, *, members=None, callbacks=None):
 
     # Stats (sempre mostra totais gerais)
     stats_wrap = tk.Frame(content, bg=bg)
-    stats_wrap.pack(fill=tk.X, pady=(0, SPACING[6]))
+    stats_wrap.pack(fill=tk.X, pady=(0, SPACING[5]))
 
     # Cabeçalho da lista + paginação label
     list_header = tk.Frame(content, bg=bg)

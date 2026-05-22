@@ -3,13 +3,14 @@ Interface gráfica de login e shell principal do aplicativo
 """
 
 import json
+import subprocess
 import tkinter as tk
 from tkinter import messagebox
 from datetime import datetime
 from pathlib import Path
 
 from design.app_shell import AppShell
-from design.pages import home, members, activities, whatsapp, users, reports
+from design.pages import home, members, activities, whatsapp, users, reports, prayers
 from design.ui import COLORS, SPACING, FONTS
 from design.ui.components import cross_icon
 
@@ -21,12 +22,26 @@ from views.dialogs import (
     open_activity_form, confirm_done_activity, confirm_cancel_activity,
     open_user_form, open_reset_password_form,
     toggle_user_active, confirm_delete_user,
+    open_prayer_form, confirm_delete_prayer,
 )
 
 try:
     from config import APP_NAME
 except ImportError:
     APP_NAME = "Sistema de Gestão"
+
+def _get_app_version() -> str:
+    try:
+        r = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            capture_output=True, text=True,
+            cwd=Path(__file__).parent.parent,
+            timeout=2,
+        )
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
 
 _PREFS_FILE = Path(__file__).parent.parent / "user_prefs.json"
 
@@ -214,6 +229,21 @@ class LoginWindow:
         footer.pack(fill=tk.X, anchor=tk.W)
         tk.Label(footer, text="banco local", font=FONTS["tiny"],
                  bg=bg, fg=COLORS["text_very_dim"]).pack(side=tk.LEFT)
+
+        version_var = tk.StringVar(value="")
+        version_lbl = tk.Label(footer, textvariable=version_var,
+                               font=FONTS["tiny"], bg=bg,
+                               fg=COLORS["text_very_dim"])
+        version_lbl.pack(side=tk.RIGHT)
+
+        import threading
+        def _load_version():
+            v = _get_app_version()
+            def _update():
+                if version_lbl.winfo_exists():
+                    version_var.set(v)
+            panel.after(0, _update)
+        threading.Thread(target=_load_version, daemon=True).start()
 
         return panel
 
@@ -445,6 +475,7 @@ class LoginWindow:
         shell_user = {
             "nome":  self.current_user["nome"],
             "nivel": self.current_user["nivel_acesso"],
+            "email": self.current_user["email"],
         }
 
         root = self.root
@@ -456,15 +487,18 @@ class LoginWindow:
             current_user=shell_user,
             on_logout=self.logout,
             on_profile=self.show_profile,
-            on_edit_profile=lambda: open_user_form(root, uid=uid, on_save=refresh_shell),
+            on_edit_profile=lambda: open_user_form(root, uid=uid, on_save=refresh_shell,
+                                                    current_user_id=uid),
         )
+        self._current_shell = shell
 
         shell.register("home",       lambda c: self._render_home(c, shell))
+        shell.register("usuarios",   lambda c: self._render_users(c, shell))
         shell.register("membros",    lambda c: self._render_members(c, shell))
         shell.register("atividades", lambda c: self._render_activities(c, shell))
-        shell.register("whatsapp",   lambda c: self._render_whatsapp(c, shell))
-        shell.register("usuarios",   lambda c: self._render_users(c, shell))
+        shell.register("oracoes",    lambda c: self._render_prayers(c, shell))
         shell.register("relatorios", lambda c: self._render_reports(c))
+        shell.register("whatsapp",   lambda c: self._render_whatsapp(c, shell))
 
         shell.navigate("home")
 
@@ -578,20 +612,28 @@ class LoginWindow:
                 "email":     m["email"] or "",
                 "niver_dia": m["aniversario_dia"],
                 "niver_mes": str(m["aniversario_mes"]) if m["aniversario_mes"] else None,
-                "color":     color,
-                "grupo":     m["grupo"] if m["grupo"] else None,
+                "color":        color,
+                "grupo":        m["grupo"] if m["grupo"] else None,
+                "grupo_casais": bool(m["grupo_casais"]),
             })
         root = self.root
+        uid  = self.current_user["id"]
         refresh = lambda: shell.navigate("membros")
         members.render(parent, members=mapped, callbacks={
-            "new_member":      lambda: open_member_form(root, on_save=refresh),
-            "edit_member":     lambda mid: open_member_form(root, member_id=mid, on_save=refresh),
-            "delete_member":   lambda m: confirm_delete_member(root, membro=m, on_confirm=refresh),
+            "new_member":      lambda: open_member_form(root, on_save=refresh,
+                                                        current_user_id=uid),
+            "edit_member":     lambda mid: open_member_form(root, member_id=mid,
+                                                            on_save=refresh,
+                                                            current_user_id=uid),
+            "delete_member":   lambda m: confirm_delete_member(root, membro=m,
+                                                               on_confirm=refresh,
+                                                               current_user_id=uid),
             "whatsapp_member": lambda _: shell.navigate("whatsapp"),
         })
 
     def _render_activities(self, parent, shell):
-        from core.activities import listar_atividades
+        from core.activities import listar_atividades, auto_concluir_passadas
+        auto_concluir_passadas()
         raw = listar_atividades()
         mapped = []
         for a in raw:
@@ -646,6 +688,36 @@ class LoginWindow:
             "whatsapp_activity": lambda ev: self._open_whatsapp_for_event(ev, shell),
         })
 
+    def _render_prayers(self, parent, shell):
+        from core.prayers import obter_oracao
+        root = self.root
+        uid  = self.current_user["id"]
+        _content_ref = [None]
+
+        def _smart_refresh():
+            c = _content_ref[0]
+            if c and c.winfo_exists() and hasattr(c, "_refresh"):
+                c._refresh()
+            else:
+                shell.navigate("oracoes")
+
+        def _delete_prayer(oid):
+            row = obter_oracao(oid)
+            solicitante = row["solicitante_nome"] if row else str(oid)
+            confirm_delete_prayer(root, oracao_id=oid,
+                                  solicitante=solicitante,
+                                  on_confirm=_smart_refresh,
+                                  current_user_id=uid)
+
+        _content_ref[0] = prayers.render(parent, current_user_id=uid, callbacks={
+            "new_prayer":    lambda: open_prayer_form(root, on_save=_smart_refresh,
+                                                      current_user_id=uid),
+            "edit_prayer":   lambda oid: open_prayer_form(root, oracao_id=oid,
+                                                          on_save=_smart_refresh,
+                                                          current_user_id=uid),
+            "delete_prayer": _delete_prayer,
+        })
+
     def _open_whatsapp_for_event(self, event, shell):
         self._whatsapp_prefill = event
         shell.navigate("whatsapp")
@@ -661,46 +733,55 @@ class LoginWindow:
         shell.navigate("whatsapp")
 
     def _render_whatsapp(self, parent, shell):
-        connected = False
-        try:
-            from core.whatsapp import status_conexao
-            st, _ = status_conexao()
-            connected = (st == "open")
-        except Exception:
-            pass
-
+        import threading
         prefill = getattr(self, "_whatsapp_prefill", None)
         self._whatsapp_prefill = None
-
         root = self.root
 
-        def _qr_code():
-            from design.pages.whatsapp import open_qr_modal
-            open_qr_modal(root)
+        # Mostra placeholder imediatamente — sem bloquear a main thread
+        bg = COLORS["bg_dark"]
+        _check_lbl = tk.Label(parent, text="Verificando conexão WhatsApp…",
+                              font=FONTS["small"], bg=bg, fg=COLORS["text_muted"])
+        _check_lbl.pack(expand=True)
 
-        def _verificar():
-            shell.navigate("whatsapp")
+        def _build(connected):
+            if not _check_lbl.winfo_exists():
+                return  # user navigated away before check completed
+            _check_lbl.destroy()
 
-        def _toggle():
+            def _qr_code():
+                from design.pages.whatsapp import open_qr_modal
+                open_qr_modal(root)
+
+            def _toggle():
+                try:
+                    from core.whatsapp import criar_instancia, desconectar_sessao
+                    if connected:
+                        desconectar_sessao()
+                    else:
+                        criar_instancia()
+                except Exception as ex:
+                    from tkinter import messagebox
+                    messagebox.showerror("Erro", str(ex), parent=root)
+                shell.navigate("whatsapp")
+
+            whatsapp.render(parent, connected=connected, callbacks={
+                "qr_code":           _qr_code,
+                "verificar":         lambda: shell.navigate("whatsapp"),
+                "toggle_connection": _toggle,
+            }, prefill=prefill)
+
+        def _check():
+            connected = False
             try:
-                from core.whatsapp import criar_instancia, desconectar_sessao
-                if connected:
-                    desconectar_sessao()
-                else:
-                    criar_instancia()
-            except Exception as ex:
-                from tkinter import messagebox
-                messagebox.showerror("Erro", str(ex), parent=root)
-            shell.navigate("whatsapp")
+                from core.whatsapp import status_conexao
+                st, _ = status_conexao()
+                connected = (st == "open")
+            except Exception:
+                pass
+            parent.after(0, lambda: _build(connected))
 
-        callbacks = {
-            "qr_code":          _qr_code,
-            "verificar":        _verificar,
-            "toggle_connection": _toggle,
-        }
-
-        whatsapp.render(parent, connected=connected,
-                        callbacks=callbacks, prefill=prefill)
+        threading.Thread(target=_check, daemon=True).start()
 
     def _render_users(self, parent, shell):
         from core.users import listar_usuarios
@@ -719,14 +800,22 @@ class LoginWindow:
                 "color": _USER_LEVEL_COLORS.get(nivel, _MEMBER_COLORS[i % len(_MEMBER_COLORS)]),
             })
         root    = self.root
+        cur_uid = self.current_user["id"]
         refresh = lambda: shell.navigate("usuarios")
         users.render(parent, users=mapped, callbacks={
-            "new_user":       lambda: open_user_form(root, on_save=refresh),
-            "edit_user":      lambda uid: open_user_form(root, uid=uid, on_save=refresh),
+            "new_user":       lambda: open_user_form(root, on_save=refresh,
+                                                     current_user_id=cur_uid),
+            "edit_user":      lambda uid: open_user_form(root, uid=uid, on_save=refresh,
+                                                         current_user_id=cur_uid),
             "reset_password": lambda uid, name: open_reset_password_form(
-                root, uid=uid, username=name),
-            "toggle_active":  lambda uid: toggle_user_active(uid=uid, on_done=refresh),
-            "delete_user":    lambda u: confirm_delete_user(root, usuario=u, on_confirm=refresh),
+                root, uid=uid, username=name, on_save=refresh,
+                current_user_id=cur_uid),
+            "toggle_active":  lambda uid: toggle_user_active(uid=uid, root=root,
+                                                              on_done=refresh,
+                                                              current_user_id=cur_uid),
+            "delete_user":    lambda u: confirm_delete_user(root, usuario=u,
+                                                            on_confirm=refresh,
+                                                            current_user_id=cur_uid),
         })
 
     def _render_reports(self, parent):
@@ -759,10 +848,15 @@ class LoginWindow:
             data["realizadas"]   = sum(1 for a in raw_at if a["status"] == "Concluído")
             data["canceladas"]   = sum(1 for a in raw_at if a["status"] == "Cancelado")
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             data.setdefault("_error", str(e))
-        reports.render(parent, data=data)
+
+        # Recupera o shell atual para poder navegar ao WhatsApp
+        shell = getattr(self, "_current_shell", None)
+        callbacks = {}
+        if shell:
+            callbacks["send_birthday"] = lambda b: self._open_whatsapp_for_birthday(b, shell)
+
+        reports.render(parent, data=data, callbacks=callbacks)
 
     # ── AUXILIARES ─────────────────────────────────────────────────
 

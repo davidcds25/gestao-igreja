@@ -154,3 +154,68 @@ def aniversariantes_do_mes(mes):
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+
+def crescimento_mensal(ano: int = None) -> dict:
+    """Retorna registros novos por mês e status para o ano informado.
+
+    Retorno:
+        {
+          "ano": 2026,
+          "membros":    [0..11],   # Ativo por mês
+          "visitantes": [0..11],   # Visitante por mês
+          "afastados":  [0..11],   # Afastado por mês
+          "anos_disponiveis": [2025, 2026],
+        }
+    """
+    from datetime import datetime
+    if ano is None:
+        ano = datetime.now().year
+
+    conn = get_connection()
+    try:
+        cur  = conn.cursor()
+
+        cur.execute("""
+            SELECT CAST(strftime('%m', data_cadastro) AS INTEGER) AS mes,
+                   status,
+                   COUNT(*) AS total
+            FROM membros
+            WHERE strftime('%Y', data_cadastro) = ?
+            GROUP BY mes, status
+            ORDER BY mes
+        """, (str(ano),))
+        rows = cur.fetchall()
+
+        cur.execute("""
+            SELECT DISTINCT CAST(strftime('%Y', data_cadastro) AS INTEGER) AS ano
+            FROM membros
+            WHERE data_cadastro IS NOT NULL
+            ORDER BY ano DESC
+        """)
+        anos = [r["ano"] for r in cur.fetchall() if r["ano"]]
+    finally:
+        conn.close()
+
+    membros    = [0] * 12
+    visitantes = [0] * 12
+    afastados  = [0] * 12
+
+    for r in rows:
+        idx = (r["mes"] or 1) - 1
+        if 0 <= idx < 12:
+            status = (r["status"] or "").strip()
+            if status == "Ativo":
+                membros[idx] = r["total"]
+            elif status == "Visitante":
+                visitantes[idx] = r["total"]
+            elif status == "Afastado":
+                afastados[idx] = r["total"]
+
+    return {
+        "ano":              ano,
+        "membros":          membros,
+        "visitantes":       visitantes,
+        "afastados":        afastados,
+        "anos_disponiveis": anos or [ano],
+    }

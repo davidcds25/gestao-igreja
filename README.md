@@ -4,17 +4,28 @@ Aplicativo desktop para gestão de igrejas: membros, eventos, comunicação via 
 
 ## Funcionalidades
 
-- Login com autenticação segura (bcrypt), tela cheia automática e "lembrar este computador"
+- **Assistente de primeiro acesso**: detecta ausência de `config.py` e exibe wizard de configuração antes do login — sem precisar editar arquivos manualmente
+- Login com autenticação segura (bcrypt), tela cheia automática, "lembrar este computador" e exibição da versão atual (tag git)
+- **Log de erros automático**: exceções não tratadas são gravadas em `crash.log` ao lado do executável com timestamp, traceback completo e informações do sistema
 - Versículo do dia via API com fallback para base local (cache entre login e home)
 - Gerenciamento de usuários com níveis de acesso (somente Admin)
+  - Modal redesenhado com avatar, medidor de força de senha, confirmação de ativação/desativação e feedback de sucesso
+  - Redefinição de senha com medidor visual de segurança e confirmação de correspondência em tempo real
+  - Modal de confirmação reutilizável com variantes danger / warning / info
 - Cadastro completo de membros com avatar, pills de status, grupo de gênero e grupos adicionais
 - Filtros de membros por Status, Função e Grupo com paginação (6 por página)
 - Controle de atividades e eventos com paginação (7 por página)
 - Envio de mensagens WhatsApp individual e em lote via WAHA com modal QR Code automático
+  - Botão "Parabenizar" no dashboard e em Relatórios > Aniversariantes (apenas no dia do aniversário), com mensagem pré-montada
 - Banco de dados local SQLite com migrações automáticas
-- Relatórios: distribuição por função e por grupo, aniversariantes por mês
+- Relatórios completos com exportação em PDF (fpdf2):
+  - Membros: KPIs + distribuição por função e por grupo
+  - Aniversariantes: lista do mês com botão de parabenizar via WhatsApp
+  - Eventos: KPIs + distribuição por status
+  - Crescimento: gráfico de barras mensal (membros, visitantes, afastados) com seletor de ano
+- Página de Orações (em desenvolvimento)
 - Interface dark theme com design system consistente (tokens, componentes, modais)
-- Scroll com mouse wheel em todas as telas e modais
+- Scroll com mouse wheel em todas as telas — nunca rola acima do título, só desce se houver conteúdo além da área visível, velocidade natural (~40 px por tick)
 
 ## Níveis de Acesso
 
@@ -23,6 +34,18 @@ Aplicativo desktop para gestão de igrejas: membros, eventos, comunicação via 
 | **Admin** | Acesso total, gerenciar usuários, relatórios |
 | **Coordenador** | Gerenciar atividades, visualizar relatórios |
 | **Usuário** | Visualizar informações e membros |
+
+## Menu Lateral
+
+A ordem do menu é fixa, com itens ocultados de acordo com o nível do usuário:
+
+1. Página Inicial — todos
+2. Gerenciar Usuários — somente Admin
+3. Membros — todos
+4. Atividades e Eventos — todos
+5. Orações — todos
+6. Relatórios — somente Admin
+7. WhatsApp — todos
 
 ## Estrutura do Projeto
 
@@ -41,10 +64,12 @@ Projeto/
 │   ├── auth.py                  # Autenticação e criptografia
 │   ├── database.py              # Banco de dados e migrações automáticas
 │   ├── users.py                 # CRUD de usuários
-│   ├── members.py               # CRUD de membros (FUNCOES, GRUPOS, STATUS, MESES)
+│   ├── members.py               # CRUD de membros + crescimento_mensal()
 │   ├── activities.py            # CRUD de atividades/eventos
 │   ├── verse.py                 # Versículo do dia (bible-api.com + fallback)
-│   └── whatsapp.py              # Integração WAHA
+│   ├── whatsapp.py              # Integração WAHA
+│   ├── pdf_export.py            # Geração de relatórios em PDF (fpdf2)
+│   └── crash_logger.py          # Log automático de erros → crash.log
 │
 ├── design/                      # Design system
 │   ├── ui/
@@ -57,29 +82,40 @@ Projeto/
 │   │   ├── members.py           # Lista de membros (filtros, paginação)
 │   │   ├── whatsapp.py          # Envio de mensagens (individual e em lote)
 │   │   ├── users.py             # Gerenciamento de usuários
-│   │   └── reports.py           # Relatórios
+│   │   ├── reports.py           # Relatórios (4 abas + exportação PDF)
+│   │   └── prayers.py           # Orações (em desenvolvimento)
 │   ├── modals/                  # Modais com design system
-│   │   ├── base.py              # StyledModal — base com header/body/footer
+│   │   ├── base.py              # StyledModal (legado) + StyledDialog (novo)
 │   │   ├── activity.py          # ActivityModal — Nova/Editar atividade
-│   │   └── member.py            # MemberModal — Novo/Editar membro
+│   │   ├── member.py            # MemberModal — Novo/Editar membro
+│   │   ├── user.py              # UserModal — Novo/Editar usuário (Admin)
+│   │   ├── password_reset.py    # PasswordResetModal — Redefinir senha
+│   │   └── confirm.py           # ConfirmModal + ask_confirm() helper
 │   └── app_shell.py             # Shell (header + sidebar + área de conteúdo)
 │
 ├── views/                       # Controladores
 │   ├── login.py                 # Shell principal, navegação, tela de login
+│   ├── setup.py                 # Wizard de configuração inicial (primeiro acesso)
 │   └── dialogs.py               # Ponto de entrada para os modais de CRUD
 │
 └── .claude/
     ├── WORKFLOW.md              # Fluxo completo de desenvolvimento e agentes
-    └── agents/                  # Agentes especializados do Claude Code
-        ├── qa.md
-        ├── commit.md
-        ├── code-review.md
-        ├── peer-review.md
-        ├── branch-pr.md
-        ├── merge-guard.md
-        ├── release.md
-        ├── deploy.md
-        └── design.md
+    ├── settings.json            # Hooks automáticos do Claude Code
+    ├── agents/                  # Agentes especializados do Claude Code
+    │   ├── qa.md
+    │   ├── commit.md
+    │   ├── code-review.md
+    │   ├── peer-review.md
+    │   ├── branch-pr.md
+    │   ├── merge-guard.md
+    │   ├── release.md
+    │   ├── deploy.md
+    │   ├── db-migration.md
+    │   └── design.md
+    └── hooks/                   # Scripts PowerShell de proteção automática
+        ├── guard-sensitive-files.ps1
+        ├── guard-main-push.ps1
+        └── remind-qa-after-edit.ps1
 ```
 
 ## Banco de Dados
@@ -90,7 +126,7 @@ Projeto/
 | `niveis_acesso` | id, nome |
 | `logs` | id, usuario_id, acao, criado_em |
 | `atividades` | id, titulo, descricao, data_inicio, data_fim, local, status, funcao_alvo, grupo_alvo |
-| `membros` | id, nome, funcao, status, grupo, grupo_casais, grupo_jovens, grupo_infantil, aniversario_dia, aniversario_mes, telefone, email, observacoes |
+| `membros` | id, nome, funcao, status, grupo, grupo_casais, aniversario_dia, aniversario_mes, telefone, email, observacoes, data_cadastro |
 
 O banco é criado automaticamente na primeira execução. Migrações são aplicadas de forma incremental e segura a cada inicialização.
 
@@ -159,6 +195,7 @@ pip install -r requirements.txt
 
 ```bash
 python main.py
+# ou dê duplo clique em start.bat
 ```
 
 A janela abre automaticamente em tela cheia.
@@ -173,6 +210,19 @@ Na primeira execução, um usuário administrador é criado automaticamente com 
 | **Senha** | `admin123` |
 
 > Altere a senha após o primeiro acesso em **Gerenciar Usuários**.
+
+## Exportação de Relatórios em PDF
+
+Na tela de Relatórios, o botão **Exportar PDF** gera um arquivo `.pdf` com os dados da aba ativa:
+
+| Aba | Conteúdo do PDF |
+|---|---|
+| Membros | KPIs (total, ativos, afastados, visitantes) + barras por função e grupo |
+| Aniversariantes | Lista do mês selecionado com dia, nome, função e contato |
+| Eventos | KPIs + barras por status (planejados, realizados, cancelados) |
+| Crescimento | KPIs anuais + tabela mensal + gráfico de barras (membros, visitantes, afastados) |
+
+O PDF é aberto automaticamente após a geração.
 
 ## Configurar WhatsApp (WAHA)
 
@@ -245,6 +295,8 @@ A sessão é salva em volume persistente — não precisa escanear o QR novament
 
 **Em lote:** escolha um filtro (Função / Grupo / Aniversariantes do mês) → clique Filtrar → revise a lista em "Ver lista" (pode desmarcar destinatários) → Enviar para todos. Intervalo de 6 segundos entre mensagens. A mensagem suporta `{nome}` que é substituído pelo primeiro nome de cada destinatário.
 
+**Parabenizar aniversariante:** disponível no Dashboard e em Relatórios > Aniversariantes, visível apenas no dia do aniversário. Abre o WhatsApp com mensagem pré-montada e número preenchido automaticamente.
+
 ## Segurança
 
 - Senhas criptografadas com bcrypt (12 rounds)
@@ -300,6 +352,16 @@ git push origin --delete feat/nome-da-feature
 
 > Consulte `.claude/WORKFLOW.md` para o diagrama completo e regras de branch.
 
+### Hooks automáticos
+
+O Claude Code executa automaticamente hooks de proteção a cada operação:
+
+| Hook | Proteção |
+|---|---|
+| `guard-sensitive-files` | Bloqueia `git add` com arquivos sensíveis (`config.py`, `*.db`, `user_prefs.json`) |
+| `guard-main-push` | Bloqueia push direto para `main` sem passar pelo fluxo de release |
+| `remind-qa-after-edit` | Lembra de rodar `/qa` após editar arquivos em `core/` |
+
 ## Compilar para Executável
 
 ```bash
@@ -310,4 +372,4 @@ O executável será gerado em `dist/gestao-igreja.exe`.
 
 ---
 
-Desenvolvido com Python 3 · tkinter · SQLite
+Desenvolvido com Python 3 · tkinter · SQLite · fpdf2
