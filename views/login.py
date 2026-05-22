@@ -3,6 +3,7 @@ Interface gráfica de login e shell principal do aplicativo
 """
 
 import json
+import subprocess
 import tkinter as tk
 from tkinter import messagebox
 from datetime import datetime
@@ -28,6 +29,19 @@ try:
     from config import APP_NAME
 except ImportError:
     APP_NAME = "Sistema de Gestão"
+
+def _get_app_version() -> str:
+    try:
+        r = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            capture_output=True, text=True,
+            cwd=Path(__file__).parent.parent,
+            timeout=2,
+        )
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
 
 _PREFS_FILE = Path(__file__).parent.parent / "user_prefs.json"
 
@@ -215,6 +229,21 @@ class LoginWindow:
         footer.pack(fill=tk.X, anchor=tk.W)
         tk.Label(footer, text="banco local", font=FONTS["tiny"],
                  bg=bg, fg=COLORS["text_very_dim"]).pack(side=tk.LEFT)
+
+        version_var = tk.StringVar(value="")
+        version_lbl = tk.Label(footer, textvariable=version_var,
+                               font=FONTS["tiny"], bg=bg,
+                               fg=COLORS["text_very_dim"])
+        version_lbl.pack(side=tk.RIGHT)
+
+        import threading
+        def _load_version():
+            v = _get_app_version()
+            def _update():
+                if version_lbl.winfo_exists():
+                    version_var.set(v)
+            panel.after(0, _update)
+        threading.Thread(target=_load_version, daemon=True).start()
 
         return panel
 
