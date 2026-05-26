@@ -146,6 +146,18 @@ def init_database():
     except Exception:
         pass  # coluna 'status' já existe
 
+    # Tabela de músicas (módulo Apresentação)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS musicas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            artista TEXT NOT NULL DEFAULT '',
+            letra TEXT NOT NULL DEFAULT '',
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # Tabela de orações
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS oracoes (

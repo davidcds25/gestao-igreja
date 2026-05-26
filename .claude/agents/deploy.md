@@ -43,12 +43,12 @@ pyinstaller --version
 
 ### Build básico (onefile)
 ```bash
-pyinstaller --onefile --windowed --name "Igreja-Vida-Plena" main.py
+pyinstaller --onefile --windowed --name "gestao-igreja" main.py
 ```
 
 ### Build com ícone (quando disponível)
 ```bash
-pyinstaller --onefile --windowed --name "Igreja-Vida-Plena" --icon=assets/icon.ico main.py
+pyinstaller --onefile --windowed --name "gestao-igreja" --icon=assets/icon.ico main.py
 ```
 
 ### Opções explicadas
@@ -89,9 +89,9 @@ pyinstaller --onefile --windowed --name "Igreja-Vida-Plena" --icon=assets/icon.i
 ```
 Projeto/
 ├── dist/
-│   └── Igreja-Vida-Plena.exe    ← executável final para distribuição
+│   └── gestao-igreja.exe    ← executável final para distribuição
 ├── build/                        ← arquivos temporários (pode deletar)
-└── Igreja-Vida-Plena.spec        ← spec gerado (pode versionar)
+└── gestao-igreja.spec        ← spec gerado (pode versionar)
 ```
 
 ---
@@ -101,7 +101,7 @@ Projeto/
 ### Teste básico (mesma máquina)
 ```bash
 # Rodar o .exe gerado
-dist\Igreja-Vida-Plena.exe
+dist\gestao-igreja.exe
 ```
 
 Verificar:
@@ -130,8 +130,8 @@ O usuário final deve:
 
 ### Estrutura para distribuição
 ```
-Igreja-Vida-Plena/
-├── Igreja-Vida-Plena.exe    ← executável
+gestao-igreja/
+├── gestao-igreja.exe    ← executável
 ├── config.example.py        ← template (renomear para config.py)
 └── README.md                ← instruções
 ```
@@ -146,7 +146,7 @@ Igreja-Vida-Plena/
 pyinstaller --onefile --windowed \
   --hidden-import=PIL._tkinter_finder \
   --hidden-import=tkcalendar \
-  --name "Igreja-Vida-Plena" main.py
+  --name "gestao-igreja" main.py
 ```
 
 ### .exe muito grande (>100MB)
@@ -155,7 +155,7 @@ pyinstaller --onefile --windowed \
 pyinstaller --onefile --windowed \
   --exclude-module=numpy \
   --exclude-module=pandas \
-  --name "Igreja-Vida-Plena" main.py
+  --name "gestao-igreja" main.py
 ```
 
 ### Antivírus bloqueando o .exe

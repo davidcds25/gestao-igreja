@@ -32,13 +32,14 @@ except ImportError:
 
 
 SIDEBAR_ITEMS = [
-    {"key": "home",       "icon": "🏠", "label": "Página Inicial",       "niveis": None},
-    {"key": "usuarios",   "icon": "👤", "label": "Gerenciar Usuários",   "niveis": {"Admin"}},
-    {"key": "membros",    "icon": "👥", "label": "Membros",               "niveis": None},
-    {"key": "atividades", "icon": "📋", "label": "Atividades e Eventos", "niveis": None},
-    {"key": "oracoes",    "icon": "🙏", "label": "Orações",               "niveis": None},
-    {"key": "relatorios", "icon": "📊", "label": "Relatórios",            "niveis": {"Admin"}},
-    {"key": "whatsapp",   "icon": "💬", "label": "WhatsApp",              "niveis": None},
+    {"key": "home",          "icon": "🏠", "label": "Página Inicial",       "niveis": None},
+    {"key": "usuarios",      "icon": "👤", "label": "Gerenciar Usuários",   "niveis": {"Admin"}},
+    {"key": "membros",       "icon": "👥", "label": "Membros",               "niveis": None},
+    {"key": "atividades",    "icon": "📋", "label": "Atividades e Eventos", "niveis": None},
+    {"key": "oracoes",       "icon": "🙏", "label": "Orações",               "niveis": None},
+    {"key": "apresentacao",  "icon": "🎬", "label": "Apresentação",           "niveis": None},
+    {"key": "relatorios",    "icon": "📊", "label": "Relatórios",            "niveis": {"Admin"}},
+    {"key": "whatsapp",      "icon": "💬", "label": "WhatsApp",              "niveis": None},
 ]
 
 

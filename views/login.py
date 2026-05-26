@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from design.app_shell import AppShell
-from design.pages import home, members, activities, whatsapp, users, reports, prayers
+from design.pages import home, members, activities, whatsapp, users, reports, prayers, apresentacao
 from design.ui import COLORS, SPACING, FONTS
 from design.ui.components import cross_icon
 
@@ -23,6 +23,7 @@ from views.dialogs import (
     open_user_form, open_reset_password_form,
     toggle_user_active, confirm_delete_user,
     open_prayer_form, confirm_delete_prayer,
+    open_music_form, confirm_delete_music,
 )
 
 try:
@@ -93,7 +94,8 @@ class LoginWindow:
         self.root.title(APP_NAME)
         self.root.configure(bg=COLORS["bg_dark"])
         self.root.state("zoomed")
-        self.current_user = None
+        self.current_user  = None
+        self._display_win  = None
         self.setup_login_screen()
 
     # ── TELA DE LOGIN ──────────────────────────────────────────────
@@ -127,31 +129,44 @@ class LoginWindow:
                    padx=SPACING[12] + SPACING[2],
                    pady=SPACING[10] + SPACING[2])
 
+        # ── Espaçador superior (empurra logo para o centro vertical) ──
+        tk.Frame(inner, bg=bg).pack(fill=tk.BOTH, expand=True)
+
         # ── Logo ──────────────────────────────────────────────────
-        logo_row = tk.Frame(inner, bg=bg)
-        logo_row.pack(anchor=tk.W)
+        from core.assets import logo_login as _logo_login
+        marca = _logo_login(inner, max_width=300)
+        if marca:
+            tk.Label(inner,
+                     text="    ".join(list("SISTEMA DE GESTÃO")),
+                     font=FONTS["section"],
+                     bg=bg, fg=COLORS["text_muted"]).pack(anchor=tk.CENTER,
+                                                           pady=(0, SPACING[2]))
+            marca.configure(bg=bg)
+            marca.pack(anchor=tk.CENTER)
+        else:
+            logo_row = tk.Frame(inner, bg=bg)
+            logo_row.pack(anchor=tk.CENTER)
+            logo_box = tk.Frame(logo_row, bg=COLORS["bg_card"],
+                                highlightbackground=COLORS["divider"],
+                                highlightthickness=1,
+                                width=44, height=44)
+            logo_box.pack(side=tk.LEFT)
+            logo_box.pack_propagate(False)
+            cross_holder = tk.Frame(logo_box, bg=COLORS["bg_card"])
+            cross_holder.place(relx=0.5, rely=0.5, anchor="center")
+            cross_icon(cross_holder, size=20,
+                       color=COLORS["accent"], bg=COLORS["bg_card"]).pack()
+            brand_text = tk.Frame(logo_row, bg=bg)
+            brand_text.pack(side=tk.LEFT, padx=(SPACING[3], 0))
+            tk.Label(brand_text, text=APP_NAME,
+                     font=(FONTS["body"][0], 17, "bold"),
+                     bg=bg, fg=COLORS["text"]).pack(anchor=tk.W)
+            tk.Label(brand_text,
+                     text="    ".join(list("SISTEMA DE GESTÃO")),
+                     font=FONTS["section"],
+                     bg=bg, fg=COLORS["text_muted"]).pack(anchor=tk.W, pady=(2, 0))
 
-        logo_box = tk.Frame(logo_row, bg=COLORS["bg_card"],
-                            highlightbackground=COLORS["divider"],
-                            highlightthickness=1,
-                            width=44, height=44)
-        logo_box.pack(side=tk.LEFT)
-        logo_box.pack_propagate(False)
-        cross_holder = tk.Frame(logo_box, bg=COLORS["bg_card"])
-        cross_holder.place(relx=0.5, rely=0.5, anchor="center")
-        cross_icon(cross_holder, size=20,
-                   color=COLORS["accent"], bg=COLORS["bg_card"]).pack()
-
-        brand_text = tk.Frame(logo_row, bg=bg)
-        brand_text.pack(side=tk.LEFT, padx=(SPACING[3], 0))
-        tk.Label(brand_text, text=APP_NAME,
-                 font=(FONTS["body"][0], 17, "bold"),
-                 bg=bg, fg=COLORS["text"]).pack(anchor=tk.W)
-        tk.Label(brand_text,
-                 text="    ".join(list("SISTEMA DE GESTÃO")),
-                 font=FONTS["section"],
-                 bg=bg, fg=COLORS["text_muted"]).pack(anchor=tk.W, pady=(2, 0))
-
+        # ── Espaçador inferior (separa logo da headline) ───────────
         tk.Frame(inner, bg=bg).pack(fill=tk.BOTH, expand=True)
 
         # ── Headline ──────────────────────────────────────────────
@@ -492,13 +507,14 @@ class LoginWindow:
         )
         self._current_shell = shell
 
-        shell.register("home",       lambda c: self._render_home(c, shell))
-        shell.register("usuarios",   lambda c: self._render_users(c, shell))
-        shell.register("membros",    lambda c: self._render_members(c, shell))
-        shell.register("atividades", lambda c: self._render_activities(c, shell))
-        shell.register("oracoes",    lambda c: self._render_prayers(c, shell))
-        shell.register("relatorios", lambda c: self._render_reports(c))
-        shell.register("whatsapp",   lambda c: self._render_whatsapp(c, shell))
+        shell.register("home",         lambda c: self._render_home(c, shell))
+        shell.register("usuarios",     lambda c: self._render_users(c, shell))
+        shell.register("membros",      lambda c: self._render_members(c, shell))
+        shell.register("atividades",   lambda c: self._render_activities(c, shell))
+        shell.register("oracoes",      lambda c: self._render_prayers(c, shell))
+        shell.register("apresentacao", lambda c: self._render_apresentacao(c, shell))
+        shell.register("relatorios",   lambda c: self._render_reports(c))
+        shell.register("whatsapp",     lambda c: self._render_whatsapp(c, shell))
 
         shell.navigate("home")
 
@@ -817,6 +833,36 @@ class LoginWindow:
                                                             on_confirm=refresh,
                                                             current_user_id=cur_uid),
         })
+
+    def _get_or_open_display(self):
+        from design.modals.apresentacao_display import DisplayWindow
+        try:
+            if self._display_win and self._display_win.exists():
+                return self._display_win
+        except Exception:
+            pass
+        self._display_win = DisplayWindow(self.root)
+        return self._display_win
+
+    def _render_apresentacao(self, parent, shell):
+        root    = self.root
+        uid     = self.current_user["id"]
+        refresh = lambda: shell.navigate("apresentacao")
+
+        apresentacao.render(
+            parent,
+            callbacks={
+                "new_music":    lambda: open_music_form(root, on_save=refresh,
+                                                        current_user_id=uid),
+                "edit_music":   lambda mid: open_music_form(root, music_id=mid,
+                                                            on_save=refresh,
+                                                            current_user_id=uid),
+                "delete_music": lambda m: confirm_delete_music(root, musica=m,
+                                                               on_confirm=refresh,
+                                                               current_user_id=uid),
+            },
+            get_display=self._get_or_open_display,
+        )
 
     def _render_reports(self, parent):
         from core.members import contar_membros, listar_membros

@@ -367,6 +367,82 @@ def open_prayer_form(root, *, oracao_id=None, on_save=None, current_user_id=None
         messagebox.showinfo("Salvo", f"Oração {label} com sucesso.", parent=root)
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# MÚSICAS
+# ══════════════════════════════════════════════════════════════════════════
+
+def open_music_form(root, *, music_id=None, on_save=None, current_user_id=None):
+    from core.musicas import criar_musica, atualizar_musica, obter_musica
+    from design.modals.musica import MusicaModal
+
+    mode    = "edit" if music_id else "new"
+    initial = {}
+    if music_id:
+        row = obter_musica(music_id)
+        if row:
+            initial = dict(row)
+
+    def _on_save(data):
+        try:
+            if mode == "new":
+                criar_musica(data["titulo"], data["artista"], data["letra"])
+                if current_user_id:
+                    from core.activities import registrar_log
+                    registrar_log(current_user_id,
+                                  f"Cadastrou música: '{data['titulo']}'")
+            else:
+                atualizar_musica(music_id, data["titulo"], data["artista"], data["letra"])
+                if current_user_id:
+                    from core.activities import registrar_log
+                    registrar_log(current_user_id,
+                                  f"Editou música: '{data['titulo']}' (ID: {music_id})")
+        except Exception as exc:
+            return str(exc)
+        if on_save:
+            on_save()
+        return None
+
+    def _on_delete():
+        from core.musicas import deletar_musica
+        if music_id:
+            deletar_musica(music_id)
+            if current_user_id:
+                from core.activities import registrar_log
+                nome = initial.get("titulo") or str(music_id)
+                registrar_log(current_user_id,
+                              f"Excluiu música: '{nome}' (ID: {music_id})")
+        if on_save:
+            on_save()
+
+    result = MusicaModal(root, mode=mode, initial=initial,
+                         on_save=_on_save,
+                         on_delete=_on_delete if mode == "edit" else None).show()
+
+    if result and not result.get("_deleted"):
+        label = "cadastrada" if mode == "new" else "atualizada"
+        messagebox.showinfo("Salvo", f"Música {label} com sucesso.", parent=root)
+
+
+def confirm_delete_music(root, *, musica, on_confirm=None, current_user_id=None):
+    from core.musicas import deletar_musica
+    from design.modals import ask_confirm
+    ok = ask_confirm(
+        root,
+        title=f"Excluir '{musica['titulo']}'?",
+        message="A música e sua letra serão removidas permanentemente.",
+        confirm_label="Sim, excluir",
+        variant="danger",
+    )
+    if ok:
+        deletar_musica(musica["id"])
+        if current_user_id:
+            from core.activities import registrar_log
+            registrar_log(current_user_id,
+                          f"Excluiu música: '{musica['titulo']}' (ID: {musica['id']})")
+        if on_confirm:
+            on_confirm()
+
+
 def confirm_delete_prayer(root, *, oracao_id, solicitante, on_confirm=None,
                           current_user_id=None):
     from core.prayers import deletar_oracao

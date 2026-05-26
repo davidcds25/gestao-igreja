@@ -43,3 +43,12 @@ desktop.ini
 
 # Logs
 *.log
+
+# Assets da marca (imagens — cada organização fornece os seus)
+# Veja assets/README.md para saber quais arquivos criar.
+assets/*.png
+assets/*.jpg
+assets/*.jpeg
+assets/*.ico
+assets/*.gif
+assets/*.webp

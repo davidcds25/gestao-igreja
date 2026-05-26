@@ -570,15 +570,23 @@ def bar_chart(parent, *, title: str, data: list):
 # ══════════════════════════════════════════════════════════════════════
 
 def header_bar(parent, *, user: dict, on_profile=None, on_edit_profile=None, on_logout=None):
-    """Top bar com cruz + nome da igreja à esquerda + user chip à direita.
-    Altura fixa de 58px (HEADER_HEIGHT)."""
+    """Top bar com marca à esquerda + user chip à direita. Altura fixa de 58px."""
+    from core.assets import logo_topo as _logo_topo
     bg = COLORS["sidebar_bg"]
     f = tk.Frame(parent, bg=bg, height=58)
     f.pack_propagate(False)
 
     left = tk.Frame(f, bg=bg)
     left.pack(side=tk.LEFT, padx=SPACING[6])
-    cross_icon(left, size=16, color=COLORS["accent"], bg=bg).pack(side=tk.LEFT, padx=(0, SPACING[3]))
+
+    marca = _logo_topo(left, height=30)
+    if marca:
+        marca.configure(bg=bg)
+        marca.pack(side=tk.LEFT, padx=(0, SPACING[3]))
+    else:
+        cross_icon(left, size=16, color=COLORS["accent"], bg=bg).pack(
+            side=tk.LEFT, padx=(0, SPACING[3]))
+
     tk.Label(left, text=_APP_NAME, font=FONTS["subtitle"],
              bg=bg, fg=COLORS["accent"]).pack(side=tk.LEFT)
 
