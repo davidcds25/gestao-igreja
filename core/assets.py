@@ -82,12 +82,12 @@ def aplicar_icone_janela(root: tk.Tk) -> None:
     """Define o ícone da janela (barra de tarefas / alt-tab).
 
     Estratégia:
-      1) Windows: tenta vidaplena.ico (multi-tamanho nativo — melhor qualidade).
+      1) Windows: tenta icon.ico (multi-tamanho nativo — melhor qualidade).
       2) Fallback: iconphoto com PNGs em todas as resoluções disponíveis.
     Silencioso se não houver nenhum arquivo."""
     import sys
     if sys.platform.startswith("win"):
-        ico = _find("vidaplena.ico")
+        ico = _find("icon.ico")
         if ico:
             try:
                 root.iconbitmap(default=str(ico))

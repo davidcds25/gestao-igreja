@@ -12,10 +12,10 @@ nesta pasta usando os nomes abaixo. O app detecta e aplica automaticamente.
 
 | Arquivo | Formato | Descrição |
 |---|---|---|
-| `vidaplena.ico` | ICO (Windows nativo) | Multi-tamanho embutido: 16/32/48/64/128/256 px. Melhor qualidade na titlebar e taskbar do Windows. |
+| `icon.ico` | ICO (Windows nativo) | Multi-tamanho embutido: 16/32/48/64/128/256 px. Melhor qualidade na titlebar e taskbar do Windows. |
 | `icon_16.png` … `icon_256.png` | PNG | Fallback para Linux/Mac (via `iconphoto`). Forneça todos os tamanhos para qualidade ideal. |
 
-> O app tenta `vidaplena.ico` primeiro no Windows. Se não existir, usa os PNGs.
+> O app tenta `icon.ico` primeiro no Windows. Se não existir, usa os PNGs.
 > Se nenhum arquivo existir, usa o ícone padrão do sistema — o app não quebra.
 
 ---
