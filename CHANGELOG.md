@@ -24,11 +24,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ### Alterado
 - `core/verse.py`: migra de `bible-api.com` para `scripture.api.bible` (autenticado com `BIBLE_API_KEY`); adiciona `buscar_versiculo()`, `buscar_por_usfm()`, lista canonica dos 66 livros em USFM e preferencia de traducao salva em `user_prefs.json`
-- `core/pdf_export.py`: corrige logo sobrepondo titulo no header do PDF (variavel `_name_x` calculada dinamicamente)
 - `design/ui/components.py`: `header_bar` usa logo da marca quando disponivel, mantem icone de cruz como fallback
 - `views/login.py`: logo centralizado na tela de login com suporte a imagem da marca; remove abertura automatica do display
 - `config.example.py`: documenta `BIBLE_API_KEY` e `BIBLE_ID` com IDs de traducoes PT gratuitas
 - `.gitignore`: ignora `assets/*.png`, `assets/*.jpg`, `assets/*.jpeg`, `assets/*.ico`, `assets/*.gif`, `assets/*.webp`
+
+### Corrigido
+- Logo do PDF nao sobrepoe mais o titulo do relatorio (`core/pdf_export.py`, calculo dinamico de `_name_x`)
+- Tela de login reorganizada: "SISTEMA DE GESTAO" exibido acima do logo; logo centralizado
+- Display de apresentacao nao abre mais automaticamente ao navegar para a aba Apresentacao
+- Remocao de todas as referencias a marca anterior ("Vida Plena") — projeto e open source; icone da janela usa `icon.ico` se disponivel
 
 ### Banco de Dados
 - Migration `CREATE TABLE IF NOT EXISTS musicas` (titulo, artista, letra, criado_em, atualizado_em)
