@@ -24,6 +24,10 @@ Aplicativo desktop para gestão de igrejas: membros, eventos, comunicação via 
   - Eventos: KPIs + distribuição por status
   - Crescimento: gráfico de barras mensal (membros, visitantes, afastados) com seletor de ano
 - Página de Orações (em desenvolvimento)
+- **Módulo de Apresentação** com display dedicado para projetor/TV:
+  - Aba **Som**: biblioteca de músicas com busca, paginação de letra por estrofes e navegação por teclado no display
+  - Aba **Versículo ao Vivo**: busca por referência (ex: João 3:16) com seletor de tradução PT via api.bible
+  - Janela separada para projetor com fundo temático (6 temas: dourado, navy, vinho, mata, roxo, petróleo), outline de texto e font caching
 - Interface dark theme com design system consistente (tokens, componentes, modais)
 - Scroll com mouse wheel em todas as telas — nunca rola acima do título, só desce se houver conteúdo além da área visível, velocidade natural (~40 px por tick)
 
@@ -44,8 +48,9 @@ A ordem do menu é fixa, com itens ocultados de acordo com o nível do usuário:
 3. Membros — todos
 4. Atividades e Eventos — todos
 5. Orações — todos
-6. Relatórios — somente Admin
-7. WhatsApp — todos
+6. Apresentação — todos
+7. Relatórios — somente Admin
+8. WhatsApp — todos
 
 ## Estrutura do Projeto
 
@@ -60,13 +65,20 @@ Projeto/
 ├── scripts/
 │   └── pre-push.ps1             # Checklist guiado antes do push (PowerShell)
 │
+├── assets/                      # Assets da marca (gitignored — cada org fornece os seus)
+│   └── README.md                # Documenta os nomes de arquivo esperados
+│
+├── themes.py                    # Paletas temáticas para o display de apresentação
+│
 ├── core/                        # Lógica de negócio
 │   ├── auth.py                  # Autenticação e criptografia
+│   ├── assets.py                # Carregamento centralizado de logos e fundos do display
 │   ├── database.py              # Banco de dados e migrações automáticas
 │   ├── users.py                 # CRUD de usuários
 │   ├── members.py               # CRUD de membros + crescimento_mensal()
 │   ├── activities.py            # CRUD de atividades/eventos
-│   ├── verse.py                 # Versículo do dia (bible-api.com + fallback)
+│   ├── musicas.py               # CRUD de músicas + paginação de letra
+│   ├── verse.py                 # Versículo do dia + busca sob demanda (api.bible)
 │   ├── whatsapp.py              # Integração WAHA
 │   ├── pdf_export.py            # Geração de relatórios em PDF (fpdf2)
 │   └── crash_logger.py          # Log automático de erros → crash.log
@@ -80,6 +92,7 @@ Projeto/
 │   │   ├── home.py              # Dashboard (KPIs, eventos, aniversariantes)
 │   │   ├── activities.py        # Atividades e eventos
 │   │   ├── members.py           # Lista de membros (filtros, paginação)
+│   │   ├── apresentacao.py      # Módulo de apresentação (som + versículo ao vivo)
 │   │   ├── whatsapp.py          # Envio de mensagens (individual e em lote)
 │   │   ├── users.py             # Gerenciamento de usuários
 │   │   ├── reports.py           # Relatórios (4 abas + exportação PDF)
@@ -88,6 +101,8 @@ Projeto/
 │   │   ├── base.py              # StyledModal (legado) + StyledDialog (novo)
 │   │   ├── activity.py          # ActivityModal — Nova/Editar atividade
 │   │   ├── member.py            # MemberModal — Novo/Editar membro
+│   │   ├── musica.py            # MusicaModal — Nova/Editar música
+│   │   ├── apresentacao_display.py  # DisplayWindow — janela projetor/TV
 │   │   ├── user.py              # UserModal — Novo/Editar usuário (Admin)
 │   │   ├── password_reset.py    # PasswordResetModal — Redefinir senha
 │   │   └── confirm.py           # ConfirmModal + ask_confirm() helper
@@ -127,6 +142,7 @@ Projeto/
 | `logs` | id, usuario_id, acao, criado_em |
 | `atividades` | id, titulo, descricao, data_inicio, data_fim, local, status, funcao_alvo, grupo_alvo |
 | `membros` | id, nome, funcao, status, grupo, grupo_casais, aniversario_dia, aniversario_mes, telefone, email, observacoes, data_cadastro |
+| `musicas` | id, titulo, artista, letra, criado_em, atualizado_em |
 
 O banco é criado automaticamente na primeira execução. Migrações são aplicadas de forma incremental e segura a cada inicialização.
 
@@ -172,9 +188,15 @@ APP_NAME         = "Minha Igreja"
 WHATSAPP_API_KEY = "sua-chave-aqui"
 ADMIN_EMAIL      = "admin@sistema.com"
 ADMIN_PASSWORD   = "admin123"
+
+# Opcional — necessário para busca de versículos no módulo de Apresentação
+BIBLE_API_KEY    = "sua-chave-aqui"   # Cadastre em https://api.bible (plano Starter gratuito)
+BIBLE_ID         = "35b94e98b2e3a01a-01"  # NVI Portuguesa (padrão)
 ```
 
 > O `config.py` está no `.gitignore` e nunca será enviado ao repositório.
+
+> **Versículo ao Vivo**: sem `BIBLE_API_KEY`, o módulo de Apresentação exibe apenas o versículo do dia do fallback local. Com a chave configurada, a busca por referência (ex: João 3:16, Salmos 23:1-3) fica disponível.
 
 ### 2. Criar ambiente Python
 

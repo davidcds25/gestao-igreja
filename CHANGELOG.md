@@ -10,6 +10,31 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [1.2.0] — 26/05/2026
+
+### Adicionado
+- Modulo de Apresentacao com duas abas: "Som" (musicas) e "Versiculo ao Vivo"; acessivel a todos os niveis de acesso
+- `design/pages/apresentacao.py`: pagina principal com controle do display e busca de versiculo
+- `design/modals/apresentacao_display.py`: `DisplayWindow` — janela separada para projetor/TV com fundo tematico, outline de texto, font caching e navegacao por teclado
+- `design/modals/musica.py`: modal de cadastro e edicao de musicas
+- `core/musicas.py`: CRUD completo de musicas + `paginar_por_linhas()` e `paginar_letra()` para navegacao no display
+- `core/assets.py`: carregamento centralizado de logos, icone da janela e fundos do display com graceful fallback quando `assets/` esta vazia
+- `themes.py`: 6 paletas tematicas para fundo do projetor (dourado, navy, vinho, mata, roxo, petroleo)
+- `assets/README.md`: documenta nomes de arquivo esperados em `assets/` para personalizacao da marca
+
+### Alterado
+- `core/verse.py`: migra de `bible-api.com` para `scripture.api.bible` (autenticado com `BIBLE_API_KEY`); adiciona `buscar_versiculo()`, `buscar_por_usfm()`, lista canonica dos 66 livros em USFM e preferencia de traducao salva em `user_prefs.json`
+- `core/pdf_export.py`: corrige logo sobrepondo titulo no header do PDF (variavel `_name_x` calculada dinamicamente)
+- `design/ui/components.py`: `header_bar` usa logo da marca quando disponivel, mantem icone de cruz como fallback
+- `views/login.py`: logo centralizado na tela de login com suporte a imagem da marca; remove abertura automatica do display
+- `config.example.py`: documenta `BIBLE_API_KEY` e `BIBLE_ID` com IDs de traducoes PT gratuitas
+- `.gitignore`: ignora `assets/*.png`, `assets/*.jpg`, `assets/*.jpeg`, `assets/*.ico`, `assets/*.gif`, `assets/*.webp`
+
+### Banco de Dados
+- Migration `CREATE TABLE IF NOT EXISTS musicas` (titulo, artista, letra, criado_em, atualizado_em)
+
+---
+
 ## [1.1.0] — 22/05/2026
 
 ### Adicionado
