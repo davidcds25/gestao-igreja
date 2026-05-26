@@ -67,14 +67,25 @@ class _PDF(FPDF):
         self.set_fill_color(*_NAV)
         self.rect(0, 0, self.w, 20, "F")
 
+        from core.assets import logo_relatorio_path as _logo_path
+        _lp = _logo_path()
+        if _lp:
+            try:
+                self.image(_lp, x=12, y=3, h=14)
+                _name_x = 34
+            except Exception:
+                _name_x = 12
+        else:
+            _name_x = 12
+
         self.set_font("Helvetica", "B", 12)
         self.set_text_color(0, 180, 220)
-        self.set_xy(12, 4)
+        self.set_xy(_name_x, 4)
         self.cell(self.w / 2, 6, _s(APP_NAME))
 
         self.set_font("Helvetica", "", 8)
         self.set_text_color(185, 195, 215)
-        self.set_xy(12, 12)
+        self.set_xy(_name_x, 12)
         self.cell(self.w / 2, 5, _s(self._tab_title))
 
         self.set_font("Helvetica", "", 8)

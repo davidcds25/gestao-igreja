@@ -46,8 +46,10 @@ def main():
 
 def _launch(root):
     from core.database import init_database
+    from core.assets import aplicar_icone_janela
     from views.login import LoginWindow
     init_database()
+    aplicar_icone_janela(root)
     LoginWindow(root)
 
 
