@@ -29,6 +29,12 @@ def render(parent, *, callbacks=None, get_display=None):
         "livro_sel":   None,
         "cap_sel":     1,
         "ver_sel":     1,
+        "midia_imagens":  [],    # [{"path": str, "nome": str}]
+        "midia_videos":   [],    # [{"path": str, "nome": str}]
+        "midia_tipo_sel": None,  # "imagem" | "video" | None
+        "midia_idx_img":  0,
+        "midia_idx_vid":  0,
+        "_poll_id":       None,
     }
 
     # ── container principal ──────────────────────────────────────────
@@ -46,18 +52,17 @@ def render(parent, *, callbacks=None, get_display=None):
     # ── tema do fundo do display ─────────────────────────────────────
     from core.assets import temas_display_disponiveis as _temas_disp
 
-    _available_temas = _temas_disp()
+    _available_temas  = _temas_disp()
     # inicia no primeiro tema disponível, ou None (preto puro)
-    _tema_var  = [_available_temas[0] if _available_temas else None]
-    _tema_btns = {}
+    _tema_var         = [_available_temas[0] if _available_temas else None]
+    _TEMA_NONE_LABEL  = "● nenhum"
+    _tema_var_str     = tk.StringVar(
+        value=_TEMA_NONE_LABEL if _tema_var[0] is None else _tema_var[0]
+    )
 
     def _set_tema(t):
         _tema_var[0] = t
-        for k, b in _tema_btns.items():
-            if k == t:
-                b.configure(bg=COLORS["accent"], fg=COLORS["bg_dark"])
-            else:
-                b.configure(bg=COLORS["bg_card"], fg=COLORS["text_muted"])
+        _tema_var_str.set(_TEMA_NONE_LABEL if t is None else t)
         dw = get_display()
         if dw and dw.exists():
             dw.set_tema(t)
@@ -65,7 +70,8 @@ def render(parent, *, callbacks=None, get_display=None):
     def _abrir_display():
         dw = get_display()
         if dw:
-            dw.set_tema(_tema_var[0])   # garante tema atual mesmo se display foi recriado
+            dw.set_tema(_tema_var[0])
+            dw._current_monitor = _mon_idx[0]
             dw.show()
 
     def _limpar_display():
@@ -73,39 +79,331 @@ def render(parent, *, callbacks=None, get_display=None):
         if dw and dw.exists():
             dw.limpar()
 
-    # seletor de fundo — só exibe se houver ao menos um tema disponível
-    if _available_temas:
-        tema_row = tk.Frame(hdr["actions"], bg=COLORS["bg_dark"])
-        tema_row.pack(side=tk.LEFT, padx=(0, SPACING[4]))
+    # ── seletor de fundo ─────────────────────────────────────────────────
+    tema_row = tk.Frame(hdr["actions"], bg=COLORS["bg_dark"])
+    tema_row.pack(side=tk.LEFT, padx=(0, SPACING[4]))
 
-        tk.Label(tema_row, text="Fundo",
-                 font=FONTS["tiny_bold"],
-                 bg=COLORS["bg_dark"], fg=COLORS["text_muted"]).pack(
-                     side=tk.LEFT, padx=(0, SPACING[2]))
+    tk.Label(tema_row, text="Fundo",
+             font=FONTS["tiny_bold"],
+             bg=COLORS["bg_dark"], fg=COLORS["text_muted"]).pack(
+                 side=tk.LEFT, padx=(0, SPACING[2]))
 
-        for _t in [None] + _available_temas:
-            _lbl = "●" if _t is None else _t
-            _b = tk.Button(
-                tema_row, text=_lbl,
-                font=FONTS["tiny_bold"],
-                bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                activebackground=COLORS["accent"],
-                activeforeground=COLORS["bg_dark"],
-                relief=tk.FLAT, bd=0,
-                padx=SPACING[3], pady=SPACING[1],
-                cursor="hand2",
-                command=lambda t=_t: _set_tema(t),
+    def _rebuild_tema_menu():
+        from core.assets import temas_display_disponiveis
+        temas = temas_display_disponiveis()
+        menu  = _tema_menu["menu"]
+        menu.delete(0, "end")
+        menu.add_command(label=_TEMA_NONE_LABEL, command=lambda: _set_tema(None))
+        for _t in temas:
+            menu.add_command(label=_t, command=lambda t=_t: _set_tema(t))
+
+    _opts = [_TEMA_NONE_LABEL] + _available_temas
+    _tema_menu = tk.OptionMenu(tema_row, _tema_var_str, *_opts)
+    _tema_menu.configure(
+        font=FONTS["tiny_bold"],
+        bg=COLORS["bg_card"], fg=COLORS["text_muted"],
+        activebackground=COLORS["accent"],
+        activeforeground=COLORS["bg_dark"],
+        relief=tk.FLAT, bd=0,
+        highlightthickness=0,
+        cursor="hand2",
+        anchor=tk.W,
+        width=12,
+    )
+    _tema_menu["menu"].configure(
+        font=FONTS["tiny_bold"],
+        bg=COLORS["bg_card"], fg=COLORS["text"],
+        activebackground=COLORS["accent"],
+        activeforeground=COLORS["bg_dark"],
+        relief=tk.FLAT, bd=0,
+    )
+    # substitui os comandos gerados pelo OptionMenu para usar _set_tema
+    _rebuild_tema_menu()
+    _tema_menu.pack(side=tk.LEFT)
+
+    def _abrir_importacao():
+        """Mostra popup de especificações e, ao confirmar, abre o seletor de arquivo."""
+
+        _SPECS = [
+            ("Formato",    "PNG ou JPG"),
+            ("Resolução",  "1920 × 1080 px  (Full HD / 16:9)"),
+            ("Fundo",      "Escuro — texto branco do app fica sobreposto"),
+            ("Tamanho",    "Máx. 5 MB"),
+            ("Arte / logo","Evite o centro — letras ficam sobrepostas ali"),
+        ]
+
+        spec_win = tk.Toplevel(outer)
+        spec_win.title("Padrão para Temas Personalizados")
+        spec_win.configure(bg=COLORS["bg_dark"])
+        spec_win.resizable(False, False)
+        spec_win.transient(outer)
+        spec_win.grab_set()
+
+        outer.update_idletasks()
+        cx = outer.winfo_rootx() + outer.winfo_width()  // 2
+        cy = outer.winfo_rooty() + outer.winfo_height() // 2
+        spec_win.geometry(f"500x490+{cx - 250}+{cy - 245}")
+
+        tk.Label(spec_win,
+                 text="Padrão para Temas Personalizados",
+                 font=FONTS["subtitle"],
+                 bg=COLORS["bg_dark"], fg=COLORS["text"]).pack(
+                     anchor=tk.W, padx=24, pady=(20, 4))
+
+        tk.Label(spec_win,
+                 text="Siga estas especificações para garantir a melhor qualidade na apresentação:",
+                 font=FONTS["body"],
+                 bg=COLORS["bg_dark"], fg=COLORS["text_muted"],
+                 wraplength=452, justify=tk.LEFT).pack(
+                     anchor=tk.W, padx=24, pady=(0, 12))
+
+        tbl = tk.Frame(spec_win, bg=COLORS["bg_card"])
+        tbl.pack(fill=tk.X, padx=24, pady=(0, 12))
+
+        for i, (campo, valor) in enumerate(_SPECS):
+            row_bg = COLORS["bg_card"] if i % 2 == 0 else COLORS["bg_dark"]
+            row = tk.Frame(tbl, bg=row_bg)
+            row.pack(fill=tk.X)
+            tk.Label(row, text=campo,
+                     font=FONTS["tiny_bold"],
+                     bg=row_bg, fg=COLORS["text_muted"],
+                     width=14, anchor=tk.W).pack(side=tk.LEFT, padx=(12, 0), pady=7)
+            tk.Label(row, text=valor,
+                     font=FONTS["tiny"],
+                     bg=row_bg, fg=COLORS["text"],
+                     anchor=tk.W).pack(side=tk.LEFT, padx=(8, 12), pady=7)
+
+        # ── botão de template ──────────────────────────────────────────
+        tmpl_row = tk.Frame(spec_win, bg=COLORS["bg_dark"])
+        tmpl_row.pack(fill=tk.X, padx=24, pady=(0, 16))
+
+        tk.Label(tmpl_row,
+                 text="Nao tem uma imagem pronta? Gere um template guia para abrir no seu editor:",
+                 font=FONTS["tiny"],
+                 bg=COLORS["bg_dark"], fg=COLORS["text_muted"],
+                 wraplength=452, justify=tk.LEFT).pack(anchor=tk.W, pady=(0, 6))
+
+        def _gerar_template():
+            import os
+            from tkinter import filedialog, messagebox
+            from core.assets import gerar_template_tema
+
+            path = filedialog.asksaveasfilename(
+                title="Salvar template do tema",
+                defaultextension=".png",
+                initialfile="template_tema_1920x1080.png",
+                filetypes=[("PNG", "*.png")],
+                parent=spec_win,
             )
-            _b.pack(side=tk.LEFT, padx=1)
-            _tema_btns[_t] = _b
+            if not path:
+                return
+            try:
+                gerar_template_tema(path)
+                os.startfile(path)
+            except Exception as exc:
+                messagebox.showerror("Erro ao gerar template", str(exc),
+                                     parent=spec_win)
 
-        # marca o tema inicial como ativo
-        _set_tema(_tema_var[0])
+        button(tmpl_row, text="Gerar Template PNG", kind="ghost", icon="📐",
+               command=_gerar_template).pack(anchor=tk.W)
+
+        btn_row = tk.Frame(spec_win, bg=COLORS["bg_dark"])
+        btn_row.pack(fill=tk.X, padx=24, pady=(0, 20))
+
+        def _prosseguir():
+            spec_win.destroy()
+            _escolher_arquivo()
+
+        button(btn_row, text="Cancelar", kind="ghost",
+               command=spec_win.destroy).pack(side=tk.RIGHT, padx=(SPACING[2], 0))
+        button(btn_row, text="Entendido — Escolher Imagem",
+               kind="primary", icon="📂",
+               command=_prosseguir).pack(side=tk.RIGHT)
+
+    def _escolher_arquivo():
+        from tkinter import filedialog, simpledialog, messagebox
+        from core.assets import importar_tema_custom
+        from pathlib import Path as _Path
+
+        path = filedialog.askopenfilename(
+            title="Selecionar imagem do tema personalizado",
+            filetypes=[
+                ("Imagens", "*.png *.jpg *.jpeg"),
+                ("PNG", "*.png"),
+                ("JPG", "*.jpg *.jpeg"),
+            ],
+            parent=outer,
+        )
+        if not path:
+            return
+
+        default_name = _Path(path).stem
+        nome = simpledialog.askstring(
+            "Nome do Tema",
+            "Nome para este tema personalizado:",
+            initialvalue=default_name,
+            parent=outer,
+        )
+        if nome is None:
+            return
+        nome = nome.strip() or default_name
+
+        try:
+            slug = importar_tema_custom(path, nome)
+        except Exception as exc:
+            messagebox.showerror("Erro ao importar tema", str(exc), parent=outer)
+            return
+
+        _rebuild_tema_menu()
+        _set_tema(slug)
+
+    tk.Button(
+        tema_row, text="+",
+        font=FONTS["tiny_bold"],
+        bg=COLORS["bg_card"], fg=COLORS["accent"],
+        activebackground=COLORS["accent"],
+        activeforeground=COLORS["bg_dark"],
+        relief=tk.FLAT, bd=0,
+        padx=SPACING[3], pady=SPACING[1],
+        cursor="hand2",
+        command=_abrir_importacao,
+    ).pack(side=tk.LEFT, padx=(SPACING[2], 0))
+
+    # marca o tema inicial como ativo
+    _set_tema(_tema_var[0])
 
     button(hdr["actions"], text="Limpar", kind="ghost", icon="✕",
            command=_limpar_display).pack(side=tk.LEFT, padx=(0, SPACING[2]))
     button(hdr["actions"], text="Abrir Display", kind="primary", icon="📺",
            command=_abrir_display).pack(side=tk.LEFT)
+
+    # ── barra de seleção de monitor ──────────────────────────────────
+    from ..modals.apresentacao_display import enumerate_monitors as _enum_monitors
+
+    _mon_idx      = [0]     # índice do monitor selecionado
+    _mon_var      = tk.StringVar(value="Monitor 1")
+    _mon_list     = []      # cache da última enumeração
+    _mon_init_ok  = [False] # True após a primeira auto-seleção do monitor
+
+    monitor_bar = tk.Frame(outer, bg=COLORS["bg_card"],
+                           highlightbackground=COLORS["divider"],
+                           highlightthickness=1)
+    monitor_bar.pack(fill=tk.X, pady=(0, SPACING[3]))
+
+    tk.Label(monitor_bar, text="🖥  Monitor:",
+             font=FONTS["small"],
+             bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack(
+                 side=tk.LEFT, padx=(SPACING[3], SPACING[2]), pady=SPACING[2])
+
+    _mon_menu = tk.OptionMenu(monitor_bar, _mon_var, "Monitor 1")
+    _mon_menu.configure(
+        font=FONTS["small"],
+        bg=COLORS["input_bg"], fg=COLORS["text"],
+        activebackground=COLORS["accent"],
+        activeforeground=COLORS["bg_dark"],
+        highlightthickness=0, relief=tk.FLAT,
+        anchor=tk.W,
+        padx=SPACING[2],
+    )
+    _mon_menu["menu"].configure(
+        bg=COLORS["bg_card"], fg=COLORS["text"],
+        activebackground=COLORS["accent"],
+        activeforeground=COLORS["bg_dark"],
+        font=FONTS["small"],
+    )
+    _mon_menu.pack(side=tk.LEFT, padx=(0, SPACING[3]), pady=SPACING[2])
+
+    def _mon_short_label(i: int, m: dict) -> str:
+        return f"Monitor {i + 1}  ({m['w']}×{m['h']})"
+
+    def _refresh_monitors():
+        _mon_list.clear()
+        _mon_list.extend(_enum_monitors())
+        menu = _mon_menu["menu"]
+        menu.delete(0, "end")
+        for i, m in enumerate(_mon_list):
+            prim      = "  ★ principal" if m.get("primary") else ""
+            full_lbl  = f"{_mon_short_label(i, m)}{prim}"
+            short_lbl = _mon_short_label(i, m)
+            menu.add_command(
+                label=full_lbl,
+                command=lambda s=short_lbl, i=i: (
+                    _mon_var.set(s),
+                    _mon_idx.__setitem__(0, i),
+                ),
+            )
+        if _mon_list:
+            # Na primeira carga: seleciona automaticamente o segundo monitor
+            # se houver mais de um (padrão de uso projetor/TV)
+            if not _mon_init_ok[0]:
+                _mon_init_ok[0] = True
+                if len(_mon_list) > 1:
+                    _mon_idx[0] = 1
+            i0 = min(_mon_idx[0], len(_mon_list) - 1)
+            _mon_var.set(_mon_short_label(i0, _mon_list[i0]))
+        multi = len(_mon_list) > 1
+        _btn_trocar.configure(
+            state=tk.NORMAL if multi else tk.DISABLED,
+            fg=COLORS["text"] if multi else COLORS["text_muted"],
+        )
+
+    def _on_fs_change(is_fs: bool):
+        """Callback chamado pelo DisplayWindow quando o estado fullscreen muda."""
+        if is_fs:
+            _btn_fs.configure(text="⬜  Modo Janela",
+                              bg=COLORS["bg_card"], fg=COLORS["text"])
+        else:
+            _btn_fs.configure(text="⛶  Tela Cheia",
+                              bg=COLORS["bg_card"], fg=COLORS["text"])
+
+    def _register_fs_callback():
+        dw = get_display()
+        if dw and dw.exists():
+            dw.set_fs_callback(_on_fs_change)
+
+    def _tela_cheia_toggle():
+        dw = get_display()
+        # Se já está em fullscreen → sai
+        if dw and dw.exists() and dw._fullscreen:
+            dw._exit_fullscreen()
+            return
+        # Garante que o display existe
+        if not dw or not dw.exists():
+            _abrir_display()
+            dw = get_display()
+            if not dw:
+                return
+        _register_fs_callback()
+        _refresh_monitors()
+        # Só envia conteúdo da aba Mídia se ela estiver ativa.
+        # Em Som ou Versículo, o display já tem o conteúdo correto.
+        if _active_tab[0] == "midia" and state.get("midia_tipo_sel"):
+            _exibir_midia()
+        dw.go_fullscreen(_mon_idx[0])
+
+    def _trocar_monitor():
+        dw = get_display()
+        if not dw or not dw.exists():
+            return
+        dw.cycle_monitor()
+        _mon_idx[0] = dw._current_monitor
+        _refresh_monitors()
+
+    _btn_fs = button(monitor_bar, text="⛶  Tela Cheia", kind="ghost",
+                     command=_tela_cheia_toggle)
+    _btn_fs.pack(side=tk.LEFT, padx=(0, SPACING[2]), pady=SPACING[2])
+
+    _btn_trocar = button(monitor_bar, text="Trocar Monitor", kind="ghost", icon="⇄",
+                         command=_trocar_monitor)
+    _btn_trocar.pack(side=tk.LEFT, pady=SPACING[2])
+
+    tk.Label(monitor_bar,
+             text="F11 = tela cheia  ·  Esc ou F11 novamente para sair",
+             font=FONTS["tiny"],
+             bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack(
+                 side=tk.RIGHT, padx=SPACING[3])
+
+    _refresh_monitors()   # preenche a lista na abertura da página
 
     # ── tab bar ──────────────────────────────────────────────────────
     _active_tab = ["som"]
@@ -117,19 +415,24 @@ def render(parent, *, callbacks=None, get_display=None):
 
     tab_som_frame   = tk.Frame(outer, bg=COLORS["bg_dark"])
     tab_verse_frame = tk.Frame(outer, bg=COLORS["bg_dark"])
+    tab_midia_frame = tk.Frame(outer, bg=COLORS["bg_dark"])
 
     def _switch_tab(name):
         _active_tab[0] = name
+        tab_som_frame.pack_forget()
+        tab_verse_frame.pack_forget()
+        tab_midia_frame.pack_forget()
+        for btn in (_btn_som, _btn_verse, _btn_midia):
+            btn.configure(bg=COLORS["bg_card"], fg=COLORS["text_muted"])
         if name == "som":
-            tab_verse_frame.pack_forget()
             tab_som_frame.pack(fill=tk.BOTH, expand=True)
-            _btn_som.configure(bg=COLORS["accent"],   fg=COLORS["bg_dark"])
-            _btn_verse.configure(bg=COLORS["bg_card"], fg=COLORS["text_muted"])
-        else:
-            tab_som_frame.pack_forget()
+            _btn_som.configure(bg=COLORS["accent"], fg=COLORS["bg_dark"])
+        elif name == "versiculo":
             tab_verse_frame.pack(fill=tk.BOTH, expand=True)
-            _btn_verse.configure(bg=COLORS["accent"],  fg=COLORS["bg_dark"])
-            _btn_som.configure(bg=COLORS["bg_card"],   fg=COLORS["text_muted"])
+            _btn_verse.configure(bg=COLORS["accent"], fg=COLORS["bg_dark"])
+        else:
+            tab_midia_frame.pack(fill=tk.BOTH, expand=True)
+            _btn_midia.configure(bg=COLORS["accent"], fg=COLORS["bg_dark"])
 
     def _tab_btn(text):
         return tk.Button(
@@ -145,10 +448,13 @@ def render(parent, *, callbacks=None, get_display=None):
 
     _btn_som   = _tab_btn("🎵  Som")
     _btn_verse = _tab_btn("📖  Versículo")
+    _btn_midia = _tab_btn("📷  Mídia")
     _btn_som.configure(command=lambda: _switch_tab("som"))
     _btn_verse.configure(command=lambda: _switch_tab("versiculo"))
+    _btn_midia.configure(command=lambda: _switch_tab("midia"))
     _btn_som.pack(side=tk.LEFT)
     _btn_verse.pack(side=tk.LEFT)
+    _btn_midia.pack(side=tk.LEFT)
 
     # ════════════════════════════════════════════════════════════════
     # ABA SOM — lista de músicas + controle de slides
@@ -688,6 +994,609 @@ def render(parent, *, callbacks=None, get_display=None):
                                 bg=COLORS["divider"], fg=COLORS["text_muted"])
 
     # ════════════════════════════════════════════════════════════════
+    # ABA MÍDIA — imagens e vídeos locais
+    # Layout: listas de imagens | vídeos lado a lado (cima)
+    #         preview + controles abaixo (largura total)
+    # ════════════════════════════════════════════════════════════════
+    import os
+    from tkinter import filedialog
+
+    _EXTS_IMG = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp", "*.tiff")
+    _EXTS_VID = ("*.mp4", "*.avi", "*.mov", "*.mkv", "*.wmv", "*.flv", "*.webm")
+    try:
+        import vlc as _vlc_check  # noqa: F401
+        _VIDEO_OK = True
+    except Exception:
+        _VIDEO_OK = False
+
+    # ── Grid: linha 0 = listas, linha 1 = preview+controles ────────────
+    tab_midia_frame.rowconfigure(0, weight=1)
+    tab_midia_frame.rowconfigure(1, weight=0)
+    tab_midia_frame.columnconfigure(0, weight=1)
+
+    lists_row = tk.Frame(tab_midia_frame, bg=COLORS["bg_dark"])
+    lists_row.grid(row=0, column=0, sticky="nsew")
+    lists_row.columnconfigure(0, weight=1)
+    lists_row.columnconfigure(1, weight=0)
+    lists_row.columnconfigure(2, weight=1)
+    lists_row.rowconfigure(0, weight=1)
+
+    # ── Coluna IMAGENS (esquerda) ────────────────────────────────────
+    img_col = tk.Frame(lists_row, bg=COLORS["bg_dark"])
+    img_col.grid(row=0, column=0, sticky="nsew")
+    img_col.rowconfigure(1, weight=1)
+    img_col.columnconfigure(0, weight=1)
+
+    img_hdr = tk.Frame(img_col, bg=COLORS["bg_dark"])
+    img_hdr.grid(row=0, column=0, sticky="ew", pady=(0, SPACING[3]))
+
+    tk.Label(img_hdr, text="IMAGENS", font=FONTS["section"],
+             bg=COLORS["bg_dark"], fg=COLORS["text_muted"]).pack(side=tk.LEFT)
+
+    def _adicionar_imagem():
+        paths = filedialog.askopenfilenames(
+            title="Selecionar imagens",
+            filetypes=[("Imagens", " ".join(_EXTS_IMG)), ("Todos", "*.*")],
+        )
+        for p in paths:
+            if p:
+                state["midia_imagens"].append({"path": p, "nome": os.path.basename(p)})
+        _render_img_lista()
+
+    button(img_hdr, text="+ Imagem", kind="primary",
+           command=_adicionar_imagem).pack(side=tk.RIGHT)
+
+    img_list_outer = tk.Frame(img_col, bg=COLORS["bg_dark"],
+                               highlightbackground=COLORS["divider"],
+                               highlightthickness=1)
+    img_list_outer.grid(row=1, column=0, sticky="nsew")
+
+    _img_canvas = tk.Canvas(img_list_outer, bg=COLORS["bg_dark"],
+                            highlightthickness=0, bd=0)
+    _img_scroll = tk.Scrollbar(img_list_outer, orient=tk.VERTICAL,
+                               command=_img_canvas.yview)
+    _img_canvas.configure(yscrollcommand=_img_scroll.set)
+    _img_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+    _img_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    _img_frame  = tk.Frame(_img_canvas, bg=COLORS["bg_dark"])
+    _img_wnd    = _img_canvas.create_window((0, 0), window=_img_frame, anchor="nw")
+    _img_frame.bind("<Configure>",
+                    lambda _e: _img_canvas.configure(scrollregion=_img_canvas.bbox("all")))
+    _img_canvas.bind("<Configure>",
+                     lambda e: _img_canvas.itemconfigure(_img_wnd, width=e.width))
+    _img_canvas.bind("<MouseWheel>",
+                     lambda e: _img_canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+
+    # ── Divider ──────────────────────────────────────────────────────
+    tk.Frame(lists_row, bg=COLORS["divider"], width=1).grid(
+        row=0, column=1, sticky="ns", padx=SPACING[3])
+
+    # ── Coluna VÍDEOS (direita) ──────────────────────────────────────
+    vid_col = tk.Frame(lists_row, bg=COLORS["bg_dark"])
+    vid_col.grid(row=0, column=2, sticky="nsew")
+    vid_col.rowconfigure(1, weight=1)
+    vid_col.columnconfigure(0, weight=1)
+
+    vid_hdr = tk.Frame(vid_col, bg=COLORS["bg_dark"])
+    vid_hdr.grid(row=0, column=0, sticky="ew", pady=(0, SPACING[3]))
+
+    tk.Label(vid_hdr, text="VÍDEOS", font=FONTS["section"],
+             bg=COLORS["bg_dark"], fg=COLORS["text_muted"]).pack(side=tk.LEFT)
+
+    def _adicionar_video():
+        paths = filedialog.askopenfilenames(
+            title="Selecionar vídeos",
+            filetypes=[("Vídeos", " ".join(_EXTS_VID)), ("Todos", "*.*")],
+        )
+        for p in paths:
+            if p:
+                state["midia_videos"].append({"path": p, "nome": os.path.basename(p)})
+        _render_vid_lista()
+
+    if _VIDEO_OK:
+        button(vid_hdr, text="+ Vídeo", kind="primary",
+               command=_adicionar_video).pack(side=tk.RIGHT)
+    else:
+        tk.Button(vid_hdr, text="+ Vídeo", font=FONTS["body_strong"],
+                  bg=COLORS["divider"], fg=COLORS["text_muted"],
+                  relief=tk.FLAT, bd=0, state=tk.DISABLED,
+                  padx=SPACING[3], pady=SPACING[1]).pack(side=tk.RIGHT)
+
+    vid_list_outer = tk.Frame(vid_col, bg=COLORS["bg_dark"],
+                               highlightbackground=COLORS["divider"],
+                               highlightthickness=1)
+    vid_list_outer.grid(row=1, column=0, sticky="nsew")
+
+    _vid_canvas = tk.Canvas(vid_list_outer, bg=COLORS["bg_dark"],
+                            highlightthickness=0, bd=0)
+    _vid_scroll = tk.Scrollbar(vid_list_outer, orient=tk.VERTICAL,
+                               command=_vid_canvas.yview)
+    _vid_canvas.configure(yscrollcommand=_vid_scroll.set)
+    _vid_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+    _vid_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    _vid_frame  = tk.Frame(_vid_canvas, bg=COLORS["bg_dark"])
+    _vid_wnd    = _vid_canvas.create_window((0, 0), window=_vid_frame, anchor="nw")
+    _vid_frame.bind("<Configure>",
+                    lambda _e: _vid_canvas.configure(scrollregion=_vid_canvas.bbox("all")))
+    _vid_canvas.bind("<Configure>",
+                     lambda e: _vid_canvas.itemconfigure(_vid_wnd, width=e.width))
+    _vid_canvas.bind("<MouseWheel>",
+                     lambda e: _vid_canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+
+    # ── Linha inferior: preview 16:9 + controles ────────────────────
+    bottom_row = tk.Frame(tab_midia_frame, bg=COLORS["bg_card"],
+                          highlightbackground=COLORS["divider"],
+                          highlightthickness=1)
+    bottom_row.grid(row=1, column=0, sticky="ew", pady=(SPACING[3], 0))
+
+    _m_preview_canvas = tk.Canvas(
+        bottom_row, bg="#0f0f0f",
+        highlightbackground=COLORS["divider"], highlightthickness=1,
+        width=284, height=160,
+    )
+    _m_preview_canvas.pack(side=tk.LEFT, padx=SPACING[3], pady=SPACING[3])
+    _m_preview_ref = [None]
+
+    ctrl_panel = tk.Frame(bottom_row, bg=COLORS["bg_card"])
+    ctrl_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True,
+                    padx=(0, SPACING[3]), pady=SPACING[3])
+
+    _m_info_var = tk.StringVar(value="Nenhum arquivo selecionado")
+    tk.Label(ctrl_panel, textvariable=_m_info_var,
+             font=FONTS["body_strong"],
+             bg=COLORS["bg_card"], fg=COLORS["text"],
+             anchor=tk.W).pack(fill=tk.X, pady=(0, SPACING[2]))
+
+    # Navegação + Exibir
+    nav_ctrl = tk.Frame(ctrl_panel, bg=COLORS["bg_card"])
+    nav_ctrl.pack(fill=tk.X, pady=(0, SPACING[2]))
+
+    _m_prev_btn = button(nav_ctrl, text="← Anterior", kind="ghost",
+                          command=lambda: _nav_midia(-1))
+    _m_prev_btn.pack(side=tk.LEFT, padx=(0, SPACING[2]))
+
+    _m_page_var = tk.StringVar(value="—")
+    tk.Label(nav_ctrl, textvariable=_m_page_var,
+             font=FONTS["body_strong"],
+             bg=COLORS["bg_card"], fg=COLORS["text"],
+             width=8, anchor=tk.CENTER).pack(side=tk.LEFT)
+
+    _m_next_btn = button(nav_ctrl, text="Próximo →", kind="ghost",
+                          command=lambda: _nav_midia(+1))
+    _m_next_btn.pack(side=tk.LEFT, padx=(SPACING[2], SPACING[4]))
+
+    _m_exibir_btn = button(nav_ctrl, text="Exibir no Display",
+                            kind="primary", icon="📺",
+                            command=lambda: _exibir_midia())
+    _m_exibir_btn.pack(side=tk.LEFT)
+
+    # ── Controles de vídeo (oculto quando imagem está selecionada) ──
+    _vid_ctrl_frame = tk.Frame(ctrl_panel, bg=COLORS["bg_card"])
+
+    _seek_dragging = [False]
+    _seek_var    = tk.IntVar(value=0)
+    _time_var    = tk.StringVar(value="0:00 / 0:00")
+    _vol_var     = tk.IntVar(value=100)
+    _vol_pct_var = tk.StringVar(value="100%")
+
+    # — play / parar —
+    pb_row = tk.Frame(_vid_ctrl_frame, bg=COLORS["bg_card"])
+    pb_row.pack(fill=tk.X, pady=(SPACING[2], 0))
+
+    _play_btn = button(pb_row, text="▶  Reproduzir", kind="primary",
+                       command=lambda: _toggle_play())
+    _play_btn.pack(side=tk.LEFT, padx=(0, SPACING[2]))
+    button(pb_row, text="⏹  Parar", kind="ghost",
+           command=lambda: _stop_video_ctrl()).pack(side=tk.LEFT)
+
+    # — seek —
+    seek_row = tk.Frame(_vid_ctrl_frame, bg=COLORS["bg_card"])
+    seek_row.pack(fill=tk.X, pady=(SPACING[2], 0))
+
+    tk.Label(seek_row, text="⏱", font=FONTS["body"],
+             bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack(
+                 side=tk.LEFT, padx=(0, SPACING[1]))
+
+    _seek_slider = tk.Scale(
+        seek_row, from_=0, to=1000, orient=tk.HORIZONTAL,
+        variable=_seek_var, showvalue=0,
+        bg=COLORS["bg_card"], fg=COLORS["text"],
+        troughcolor=COLORS["divider"],
+        activebackground=COLORS["accent"],
+        highlightthickness=0, sliderlength=12, bd=0,
+    )
+    _seek_slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+    tk.Label(seek_row, textvariable=_time_var,
+             font=FONTS["small"],
+             bg=COLORS["bg_card"], fg=COLORS["text_muted"],
+             width=13, anchor=tk.W).pack(side=tk.LEFT, padx=(SPACING[2], 0))
+
+    # — volume —
+    vol_row = tk.Frame(_vid_ctrl_frame, bg=COLORS["bg_card"])
+    vol_row.pack(fill=tk.X, pady=(SPACING[1], 0))
+
+    tk.Label(vol_row, text="🔊", font=FONTS["body"],
+             bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack(
+                 side=tk.LEFT, padx=(0, SPACING[1]))
+
+    def _on_vol_change(val):
+        v = int(val)
+        _vol_pct_var.set(f"{v}%")
+        dw = get_display()
+        if not dw or not dw.exists():
+            return
+        player = dw.get_player()
+        if player:
+            player.audio_set_volume(v)
+
+    _vol_slider = tk.Scale(
+        vol_row, from_=0, to=100, orient=tk.HORIZONTAL,
+        variable=_vol_var, showvalue=0, length=160,
+        bg=COLORS["bg_card"], fg=COLORS["text"],
+        troughcolor=COLORS["divider"],
+        activebackground=COLORS["accent"],
+        highlightthickness=0, sliderlength=12, bd=0,
+        command=_on_vol_change,
+    )
+    _vol_slider.pack(side=tk.LEFT)
+
+    tk.Label(vol_row, textvariable=_vol_pct_var,
+             font=FONTS["small"],
+             bg=COLORS["bg_card"], fg=COLORS["text_muted"],
+             width=5, anchor=tk.W).pack(side=tk.LEFT, padx=(SPACING[2], 0))
+
+    # Seek: clique direto OU arrastar → posição calculada pelas coordenadas do mouse.
+    # tk.Scale move apenas 1 passo por clique no trough; contornamos capturando x.
+    def _seek_pos_from_event(event) -> int:
+        w    = _seek_slider.winfo_width()
+        half = 6  # metade do sliderlength=12
+        eff  = max(1, w - 2 * half)
+        x    = max(0, min(event.x - half, eff))
+        return int(x / eff * 1000)
+
+    def _on_seek_press(event):
+        _seek_dragging[0] = True
+        _seek_var.set(_seek_pos_from_event(event))
+        return "break"  # impede Scale de mover só 1 passo
+
+    def _on_seek_motion(event):
+        if _seek_dragging[0]:
+            _seek_var.set(_seek_pos_from_event(event))
+
+    def _on_seek_release(event=None):
+        _seek_dragging[0] = False
+        dw = get_display()
+        if not dw or not dw.exists():
+            return
+        player = dw.get_player()
+        if player and player.get_length() > 0:
+            ms = int(_seek_var.get() / 1000 * player.get_length())
+            player.set_time(ms)
+
+    _seek_slider.bind("<ButtonPress-1>",   _on_seek_press)
+    _seek_slider.bind("<B1-Motion>",       _on_seek_motion)
+    _seek_slider.bind("<ButtonRelease-1>", _on_seek_release)
+
+    if not _VIDEO_OK:
+        tk.Label(ctrl_panel,
+                 text="⚠️  Para vídeos: pip install python-vlc  (VLC obrigatório)",
+                 font=FONTS["tiny"],
+                 bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack(
+                     anchor=tk.W, pady=(SPACING[2], 0))
+
+    # ── Render das listas ────────────────────────────────────────────
+
+    def _make_media_row(parent, idx, item, tipo, on_select, on_remove):
+        img_ativa = (tipo == "imagem" and state["midia_tipo_sel"] == "imagem"
+                     and state["midia_idx_img"] == idx)
+        vid_ativa = (tipo == "video"  and state["midia_tipo_sel"] == "video"
+                     and state["midia_idx_vid"] == idx)
+        ativa    = img_ativa or vid_ativa
+        bg       = COLORS["sidebar_active"] if ativa else COLORS["bg_dark"]
+        bg_hover = COLORS["sidebar_hover"]
+        icone    = "🖼" if tipo == "imagem" else "🎬"
+
+        row = tk.Frame(parent, bg=bg, cursor="hand2")
+        row.pack(fill=tk.X)
+        tk.Frame(row, bg=COLORS["accent"] if ativa else bg,
+                 width=3).pack(side=tk.LEFT, fill=tk.Y)
+        inner = tk.Frame(row, bg=bg)
+        inner.pack(side=tk.LEFT, fill=tk.X, expand=True,
+                   padx=SPACING[2], pady=SPACING[2])
+        tk.Label(inner, text=f"{icone}  {item['nome']}",
+                 font=FONTS["small"],
+                 bg=bg, fg=COLORS["text"], anchor=tk.W).pack(fill=tk.X)
+
+        tk.Button(row, text="✕", font=FONTS["tiny"],
+                  bg=bg, fg=COLORS["text_muted"],
+                  activebackground=COLORS["danger"],
+                  activeforeground="#ffffff",
+                  relief=tk.FLAT, bd=0, padx=SPACING[2],
+                  cursor="hand2",
+                  command=lambda i=idx: on_remove(i)).pack(
+                      side=tk.RIGHT, padx=SPACING[1])
+
+        tk.Frame(parent, bg=COLORS["divider_soft"], height=1).pack(fill=tk.X)
+
+        def _sel(_e=None, i=idx):
+            on_select(i)
+
+        def _enter(_e, r=row, a=ativa):
+            if not a:
+                _set_bg(r, bg_hover)
+
+        def _leave(_e, r=row, a=ativa):
+            if not a:
+                _set_bg(r, bg)
+
+        for w in [row, inner] + list(inner.winfo_children()):
+            w.bind("<Button-1>", _sel)
+            w.bind("<Enter>",    _enter)
+            w.bind("<Leave>",    _leave)
+
+    def _render_img_lista():
+        for w in _img_frame.winfo_children():
+            w.destroy()
+        imgs = state["midia_imagens"]
+        if not imgs:
+            empty_state(_img_frame, icon="🖼", title="Sem imagens",
+                        body="Clique em '+ Imagem'.").pack(
+                            fill=tk.BOTH, expand=True, pady=SPACING[6])
+        else:
+            for i, it in enumerate(imgs):
+                _make_media_row(_img_frame, i, it, "imagem",
+                                on_select=_sel_imagem, on_remove=_rem_imagem)
+        _update_midia_controls()
+
+    def _render_vid_lista():
+        for w in _vid_frame.winfo_children():
+            w.destroy()
+        vids = state["midia_videos"]
+        if not vids:
+            body_txt = ("Instale python-vlc para suporte a vídeo."
+                        if not _VIDEO_OK else "Clique em '+ Vídeo'.")
+            empty_state(_vid_frame, icon="🎬", title="Sem vídeos",
+                        body=body_txt).pack(
+                            fill=tk.BOTH, expand=True, pady=SPACING[6])
+        else:
+            for i, it in enumerate(vids):
+                _make_media_row(_vid_frame, i, it, "video",
+                                on_select=_sel_video, on_remove=_rem_video)
+        _update_midia_controls()
+
+    def _sel_imagem(idx):
+        state["midia_tipo_sel"] = "imagem"
+        state["midia_idx_img"]  = idx
+        _render_img_lista()
+        _render_vid_lista()
+        _vid_ctrl_frame.pack_forget()
+        _update_midia_controls()
+
+    def _sel_video(idx):
+        state["midia_tipo_sel"] = "video"
+        state["midia_idx_vid"]  = idx
+        _render_img_lista()
+        _render_vid_lista()
+        _vid_ctrl_frame.pack(fill=tk.X, pady=(SPACING[2], 0))
+        _update_midia_controls()
+
+    def _rem_imagem(idx):
+        lst = state["midia_imagens"]
+        if 0 <= idx < len(lst):
+            lst.pop(idx)
+        if state["midia_tipo_sel"] == "imagem":
+            state["midia_idx_img"] = max(0, min(state["midia_idx_img"], len(lst) - 1))
+            if not lst:
+                state["midia_tipo_sel"] = None
+        _render_img_lista()
+
+    def _rem_video(idx):
+        lst = state["midia_videos"]
+        if 0 <= idx < len(lst):
+            lst.pop(idx)
+        if state["midia_tipo_sel"] == "video":
+            state["midia_idx_vid"] = max(0, min(state["midia_idx_vid"], len(lst) - 1))
+            if not lst:
+                state["midia_tipo_sel"] = None
+                _vid_ctrl_frame.pack_forget()
+        _render_vid_lista()
+
+    # ── Preview ──────────────────────────────────────────────────────
+
+    def _update_midia_preview():
+        c  = _m_preview_canvas
+        pw = c.winfo_width()  or 284
+        ph = c.winfo_height() or 160
+        c.delete("all")
+        _m_preview_ref[0] = None
+        tipo = state["midia_tipo_sel"]
+
+        if tipo == "imagem":
+            lst = state["midia_imagens"]
+            idx = state["midia_idx_img"]
+            if not lst or idx >= len(lst):
+                return
+            try:
+                from PIL import Image, ImageTk as _ITk
+                img = Image.open(lst[idx]["path"]).convert("RGB")
+                img.thumbnail((pw, ph), Image.LANCZOS)
+                tk_img = _ITk.PhotoImage(img)
+                _m_preview_ref[0] = tk_img
+                c.create_image((pw - img.width) // 2,
+                               (ph - img.height) // 2,
+                               anchor="nw", image=tk_img)
+            except Exception:
+                pass
+
+        elif tipo == "video":
+            lst = state["midia_videos"]
+            idx = state["midia_idx_vid"]
+            if not lst or idx >= len(lst):
+                return
+            # Placeholder — VLC não suporta snapshot sem janela visível
+            c.create_rectangle(0, 0, pw, ph, fill="#0a0a0a", outline="")
+            c.create_text(pw // 2, ph // 2 - 16,
+                          text="▶", font=(FONTS["body"][0], 30),
+                          fill=COLORS["text_muted"])
+            c.create_text(pw // 2, ph // 2 + 20,
+                          text=lst[idx]["nome"],
+                          font=FONTS["tiny"],
+                          fill=COLORS["text_muted"],
+                          width=pw - 20)
+
+    # ── Controles gerais ─────────────────────────────────────────────
+
+    def _update_midia_controls():
+        tipo = state["midia_tipo_sel"]
+        if tipo == "imagem":
+            lst, idx = state["midia_imagens"], state["midia_idx_img"]
+        elif tipo == "video":
+            lst, idx = state["midia_videos"],  state["midia_idx_vid"]
+        else:
+            lst, idx = [], 0
+
+        tem   = bool(lst)
+        s_on  = tk.NORMAL if tem else tk.DISABLED
+        bg_on = COLORS["accent"]
+        bg_off = COLORS["divider"]
+
+        for btn in (_m_prev_btn, _m_next_btn):
+            btn.configure(
+                state=s_on,
+                bg=COLORS["input_bg"] if tem else COLORS["divider"],
+                fg=COLORS["text"]     if tem else COLORS["text_muted"])
+
+        _m_exibir_btn.configure(
+            state=s_on,
+            bg=bg_on  if tem else bg_off,
+            fg=COLORS["bg_dark"] if tem else COLORS["text_muted"])
+
+        if tem:
+            _m_page_var.set(f"{idx + 1}  /  {len(lst)}")
+            _m_info_var.set(lst[idx]["nome"])
+        else:
+            _m_page_var.set("—")
+            _m_info_var.set("Nenhum arquivo selecionado")
+
+        _update_midia_preview()
+
+    def _nav_midia(delta: int):
+        tipo = state["midia_tipo_sel"]
+        if tipo == "imagem":
+            lst = state["midia_imagens"]
+            state["midia_idx_img"] = max(0, min(state["midia_idx_img"] + delta, len(lst) - 1))
+            _render_img_lista()
+        elif tipo == "video":
+            lst = state["midia_videos"]
+            state["midia_idx_vid"] = max(0, min(state["midia_idx_vid"] + delta, len(lst) - 1))
+            _render_vid_lista()
+        _update_midia_controls()
+
+    def _exibir_midia():
+        dw = get_display()
+        if not dw or not dw.exists():
+            return
+        tipo = state["midia_tipo_sel"]
+        if tipo == "imagem":
+            lst = state["midia_imagens"]
+            idx = state["midia_idx_img"]
+            if not lst or idx >= len(lst):
+                return
+            _stop_poll()
+            dw.show_imagem(lst[idx]["path"])
+            dw.bind_nav(
+                on_prev=lambda: (_nav_midia(-1), _exibir_midia()),
+                on_next=lambda: (_nav_midia(+1), _exibir_midia()),
+            )
+        elif tipo == "video":
+            lst = state["midia_videos"]
+            idx = state["midia_idx_vid"]
+            if not lst or idx >= len(lst):
+                return
+            dw.show_video(lst[idx]["path"])
+            dw.bind_nav(
+                on_prev=lambda: (_nav_midia(-1), _exibir_midia()),
+                on_next=lambda: (_nav_midia(+1), _exibir_midia()),
+            )
+            _start_poll()
+        else:
+            return
+        dw.show()
+
+    # ── Controles de vídeo ───────────────────────────────────────────
+
+    def _toggle_play():
+        dw = get_display()
+        if not dw or not dw.exists():
+            return
+        player = dw.get_player()
+        if player is None:
+            _exibir_midia()   # inicia se ainda não está reproduzindo
+            return
+        if player.is_playing():
+            player.pause()
+        else:
+            player.play()
+
+    def _stop_video_ctrl():
+        _stop_poll()
+        dw = get_display()
+        if dw and dw.exists():
+            dw.limpar()
+        _play_btn.configure(text="▶  Reproduzir",
+                            bg=COLORS["accent"], fg=COLORS["bg_dark"])
+        _time_var.set("0:00 / 0:00")
+        _seek_var.set(0)
+
+    def _start_poll():
+        _stop_poll()
+        _poll_video()
+
+    def _stop_poll():
+        pid = state.get("_poll_id")
+        if pid:
+            try:
+                outer.after_cancel(pid)
+            except Exception:
+                pass
+            state["_poll_id"] = None
+
+    def _poll_video():
+        if not outer.winfo_exists():
+            return
+        dw = get_display()
+        if not dw or not dw.exists():
+            return
+        player = dw.get_player()
+        if player is None:
+            state["_poll_id"] = None
+            return
+        try:
+            t_ms  = max(0, player.get_time())
+            l_ms  = max(0, player.get_length())
+            is_pl = bool(player.is_playing())
+            _play_btn.configure(
+                text="⏸  Pausar"       if is_pl else "▶  Reproduzir",
+                bg=COLORS["divider"]   if not is_pl else COLORS["accent"],
+                fg=COLORS["text"]      if not is_pl else COLORS["bg_dark"],
+            )
+            if l_ms > 0 and not _seek_dragging[0]:
+                _seek_var.set(int(t_ms / l_ms * 1000))
+
+            def _fmt(ms):
+                s = ms // 1000
+                return f"{s // 60}:{s % 60:02d}"
+            _time_var.set(f"{_fmt(t_ms)} / {_fmt(l_ms)}")
+        except Exception:
+            pass
+        state["_poll_id"] = outer.after(500, _poll_video)
+
+    # Inicializa as duas listas vazias
+    _render_img_lista()
+    _render_vid_lista()
+
+    # ════════════════════════════════════════════════════════════════
     # Lógica interna
     # ════════════════════════════════════════════════════════════════
 
@@ -898,6 +1807,10 @@ def render(parent, *, callbacks=None, get_display=None):
             try:
                 outer.unbind_all("<Left>")
                 outer.unbind_all("<Right>")
+            except Exception:
+                pass
+            try:
+                _stop_poll()
             except Exception:
                 pass
 

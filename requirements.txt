@@ -3,3 +3,4 @@ Pillow>=10.0.0
 pyinstaller==6.3.0
 tkcalendar==1.6.1
 fpdf2>=2.7.0
+python-vlc>=3.0.0  # requer VLC instalado na máquina (videolan.org/vlc)
