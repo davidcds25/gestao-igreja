@@ -461,11 +461,13 @@ class LoginWindow:
         user = authenticate_user(email, senha)
 
         if user:
-            # Salva ou apaga o e-mail conforme a preferência
+            # Salva ou apaga o e-mail preservando outras chaves (ex: theme)
+            prefs = _load_prefs()
             if self._remember_var.get():
-                _save_prefs({"email": email})
+                prefs["email"] = email
             else:
-                _save_prefs({})
+                prefs.pop("email", None)
+            _save_prefs(prefs)
             self._login_error_var.set("")
             self.current_user = user
             self.show_main_menu()

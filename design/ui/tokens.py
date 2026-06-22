@@ -91,7 +91,32 @@ _LIGHT = {
     "purple":         "#7c3aed",
 }
 
-COLORS = _DARK  # ← troque para _LIGHT para tema claro
+COLORS = dict(_DARK)  # cópia mutável — set_theme() altera em-place
+
+# ─── Gerenciamento de tema ─────────────────────────────────────────────
+_current_theme: str = "dark"
+
+
+def get_theme() -> str:
+    """Retorna 'dark' ou 'light'."""
+    return _current_theme
+
+
+def set_theme(name: str):
+    """Troca o tema mutando COLORS e STATUS_COLORS em-place.
+
+    Deve ser chamado ANTES de qualquer widget ser criado — tipicamente
+    em main.py logo no início de _launch(). A mutação em-place garante
+    que todos os módulos que importaram COLORS continuam apontando para
+    o mesmo objeto (já atualizado).
+    """
+    global _current_theme
+    _current_theme = "light" if name == "light" else "dark"
+    palette = _LIGHT if _current_theme == "light" else _DARK
+    COLORS.clear()
+    COLORS.update(palette)
+    STATUS_COLORS.clear()
+    STATUS_COLORS.update(_build_status_colors())
 
 # ─── Tipografia ────────────────────────────────────────────────────────
 # Segoe UI é nativa do Windows desde Vista. tk faz fallback para Arial
@@ -122,19 +147,24 @@ FONTS = {
 
 # ─── Mapeamentos de cor por estado ─────────────────────────────────────
 # Use estes em vez de if/elif espalhados. Cada tupla é (bg, fg).
-STATUS_COLORS = {
-    "Ativo":      (_DARK["success"], _DARK["bg_dark"]),
-    "Afastado":   (_DARK["danger"],  "#ffffff"),
-    "Visitante":  (_DARK["warning"], _DARK["bg_dark"]),
-    "Planejado":  (_DARK["accent2"], "#ffffff"),
-    "Realizado":  (_DARK["success"], _DARK["bg_dark"]),
-    "Cancelado":  (_DARK["danger"],  "#ffffff"),
-    "Concluído":  (_DARK["success"], _DARK["bg_dark"]),
-    # Função do membro:
-    "Membro":     (_DARK["input_bg"], _DARK["text_dim"]),
-    "Diácono":    (_DARK["accent2"],  "#ffffff"),
-    "Presbítero": (_DARK["purple"],   "#ffffff"),
-}
+# NUNCA referencie _DARK/_LIGHT aqui — use COLORS para adaptar ao tema.
+
+def _build_status_colors() -> dict:
+    return {
+        "Ativo":      (COLORS["success"], COLORS["bg_dark"]),
+        "Afastado":   (COLORS["danger"],  "#ffffff"),
+        "Visitante":  (COLORS["warning"], COLORS["bg_dark"]),
+        "Planejado":  (COLORS["accent2"], "#ffffff"),
+        "Realizado":  (COLORS["success"], COLORS["bg_dark"]),
+        "Cancelado":  (COLORS["danger"],  "#ffffff"),
+        "Concluído":  (COLORS["success"], COLORS["bg_dark"]),
+        # Função do membro:
+        "Membro":     (COLORS["input_bg"], COLORS["text_dim"]),
+        "Diácono":    (COLORS["accent2"],  "#ffffff"),
+        "Presbítero": (COLORS["purple"],   "#ffffff"),
+    }
+
+STATUS_COLORS: dict = _build_status_colors()
 
 # ─── Constantes de layout ──────────────────────────────────────────────
 SIDEBAR_WIDTH    = 230

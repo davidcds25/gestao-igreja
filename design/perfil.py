@@ -56,6 +56,18 @@ def _menu_icon(parent, kind: str, fg: str, bg: str) -> tk.Canvas:
         cv.create_line(8, 3, 3, 3, 3, 13, 8, 13, fill=fg, width=lw)
         cv.create_line(8, 8, 14, 8, fill=fg, width=lw)
         cv.create_line(12, 6, 14, 8, 12, 10, fill=fg, width=lw)
+    elif kind == "theme":
+        import math
+        # Círculo central (sol)
+        cv.create_oval(5, 5, 11, 11, outline=fg, width=lw, fill="")
+        # 8 raios
+        for i in range(8):
+            rad = math.radians(i * 45)
+            x1 = round(8 + 5.5 * math.cos(rad))
+            y1 = round(8 + 5.5 * math.sin(rad))
+            x2 = round(8 + 7.5 * math.cos(rad))
+            y2 = round(8 + 7.5 * math.sin(rad))
+            cv.create_line(x1, y1, x2, y2, fill=fg, width=lw)
     return cv
 
 
@@ -147,6 +159,12 @@ class PerfilMenu:
 
         tk.Frame(card, bg=COLORS["divider"], height=1).pack(fill=tk.X)
 
+        from .ui.tokens import get_theme
+        theme_label = "Tema claro ☀" if get_theme() == "dark" else "Tema escuro 🌙"
+        self._item(card, theme_label, "theme", self._toggle_theme)
+
+        tk.Frame(card, bg=COLORS["divider"], height=1).pack(fill=tk.X)
+
         self._item(card, "Sair", "logout", self._do_logout, danger=True)
 
     def _item(self, parent, label, icon_kind, command, danger=False):
@@ -192,6 +210,27 @@ class PerfilMenu:
         self._close()
         if self.on_edit:
             self.on_edit()
+
+    def _toggle_theme(self):
+        self._close()
+        from .ui.tokens import get_theme
+        from core.prefs import set_pref
+        import os, sys
+
+        new_theme = "light" if get_theme() == "dark" else "dark"
+        nome = "claro" if new_theme == "light" else "escuro"
+        set_pref("theme", new_theme)
+
+        root = self.parent.winfo_toplevel()
+        from tkinter import messagebox
+        reiniciar = messagebox.askyesno(
+            "Trocar tema",
+            f"Tema {nome} salvo.\n\nO tema será aplicado após reiniciar. Reiniciar agora?",
+            parent=root,
+        )
+        if reiniciar:
+            root.destroy()
+            os.execv(sys.executable, [sys.executable] + sys.argv)
 
     def _do_logout(self):
         self._close()
