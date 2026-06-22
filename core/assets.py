@@ -30,10 +30,18 @@ Se o arquivo personalizado não existir, o sistema usa o arquivo original
 da pasta assets/ como fallback automático.
 """
 
+import sys as _sys
 from pathlib import Path
 import tkinter as tk
 
 _DIR = Path(__file__).parent.parent / "assets"
+
+# Pasta gravável pelo usuário: ao lado do .exe em produção, ou em assets/ em dev.
+_CUSTOM_DIR = (
+    Path(_sys.executable).parent / "assets" / "temas_custom"
+    if getattr(_sys, "frozen", False)
+    else _DIR / "temas_custom"
+)
 
 
 def _find(*names: str) -> Path | None:
@@ -61,19 +69,152 @@ _TEMAS_DISPLAY: dict[str, str] = {
 }
 
 
+def _custom_temas() -> dict[str, Path]:
+    """Retorna {slug: path} de todos os temas personalizados em temas_custom/."""
+    if not _CUSTOM_DIR.exists():
+        return {}
+    result: dict[str, Path] = {}
+    for ext in ("*.png", "*.jpg", "*.jpeg"):
+        for p in sorted(_CUSTOM_DIR.glob(ext)):
+            result[p.stem] = p
+    return result
+
+
 def bg_display_path(tema: str) -> str | None:
     """Caminho do PNG de fundo para o display de apresentação.
     Retorna None se o arquivo do tema não existir (display usa preto puro)."""
     arquivo = _TEMAS_DISPLAY.get(tema)
-    if not arquivo:
-        return None
-    p = _find(arquivo)
+    if arquivo:
+        p = _find(arquivo)
+        return str(p) if p else None
+    # Tema personalizado
+    custom = _custom_temas()
+    p = custom.get(tema)
     return str(p) if p else None
 
 
 def temas_display_disponiveis() -> list:
-    """Lista de temas cujo arquivo de fundo existe em assets/."""
-    return [t for t, f in _TEMAS_DISPLAY.items() if _find(f)]
+    """Lista de temas cujo arquivo de fundo existe (embutidos + personalizados)."""
+    built_in = [t for t, f in _TEMAS_DISPLAY.items() if _find(f)]
+    custom   = list(_custom_temas().keys())
+    return built_in + custom
+
+
+def importar_tema_custom(source_path: str, nome: str | None = None) -> str:
+    """Copia imagem para temas_custom/ e retorna o slug do tema.
+
+    O slug é o nome do arquivo sem extensão, com caracteres especiais
+    substituídos por _. Se `nome` não for fornecido, usa o nome do arquivo."""
+    import shutil, re
+    _CUSTOM_DIR.mkdir(parents=True, exist_ok=True)
+    src = Path(source_path)
+    slug_base = re.sub(r"[^\w\-]", "_", nome or src.stem).strip("_") or "tema"
+    ext  = src.suffix.lower()
+    dest = _CUSTOM_DIR / f"{slug_base}{ext}"
+    # evita sobrescrever: acrescenta sufixo numérico se necessário
+    counter = 1
+    while dest.exists() and dest != src.resolve():
+        dest = _CUSTOM_DIR / f"{slug_base}_{counter}{ext}"
+        counter += 1
+    shutil.copy2(src, dest)
+    return dest.stem
+
+
+def remover_tema_custom(slug: str) -> bool:
+    """Remove um tema personalizado pelo slug. Retorna True se removido."""
+    custom = _custom_temas()
+    p = custom.get(slug)
+    if not p:
+        return False
+    p.unlink(missing_ok=True)
+    return True
+
+
+def gerar_template_tema(output_path: str) -> None:
+    """Gera um PNG 1920×1080 com guias visuais para criação de temas personalizados.
+
+    O arquivo pode ser aberto em qualquer editor de imagem (GIMP, Photoshop,
+    Canva, Paint.NET) e usado como base — basta colocar a arte abaixo dos guias
+    e exportar sem eles."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError as exc:
+        raise RuntimeError(
+            "Pillow não está instalado. Execute: pip install Pillow"
+        ) from exc
+
+    W, H = 1920, 1080
+
+    img  = Image.new("RGB", (W, H), color=(18, 18, 28))
+    draw = ImageDraw.Draw(img)
+
+    for y in range(H):
+        r = int(18 + (30 - 18) * y / H)
+        g = int(18 + (24 - 18) * y / H)
+        b = int(28 + (50 - 28) * y / H)
+        draw.line([(0, y), (W, y)], fill=(r, g, b))
+
+    def _font(size: int):
+        try:
+            return ImageFont.truetype("arial.ttf", size)
+        except OSError:
+            return ImageFont.load_default()
+
+    def _label(x, y, text, color, size=22):
+        draw.text((x, y), text, fill=color, font=_font(size))
+
+    def _center_text(cx, cy, text, color, size=36):
+        f = _font(size)
+        bbox = draw.textbbox((0, 0), text, font=f)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        draw.text((cx - tw // 2, cy - th // 2), text, fill=color, font=f)
+
+    def _corner(x, y, label, right=False, bottom=False):
+        s = 7
+        draw.rectangle([x - s, y - s, x + s, y + s], fill=(200, 200, 200))
+        tx = (x - 90) if right else (x + 10)
+        ty = (y - 30) if bottom else (y + 10)
+        _label(tx, ty, label, (200, 200, 200), 22)
+
+    bx, by   = int(W * 0.10), int(H * 0.10)
+    sx, sy   = int(W * 0.14), int(H * 0.14)
+    cy_start = int(H * 0.325)
+    cy_end   = int(H * 0.675)
+
+    draw.rectangle([bx, by, W - bx, H - by], outline=(255, 80, 80),  width=2)
+    _label(bx + 8, by + 8,
+           "Zona de borda (10%) — pode ser cortada em diferentes resolucoes",
+           (255, 80, 80))
+
+    draw.rectangle([sx, sy, W - sx, H - sy], outline=(255, 200, 0), width=2)
+    _label(sx + 8, sy + 8,
+           "Zona segura (80%) — arte, logotipos e elementos visuais aqui",
+           (255, 200, 0))
+
+    draw.rectangle([sx + 20, cy_start, W - sx - 20, cy_end],
+                   outline=(80, 200, 80), width=2)
+    _label(sx + 28, cy_start + 8,
+           "Area de letras e versiculos — mantenha LIMPO (texto branco aparece aqui)",
+           (80, 200, 80))
+
+    _corner(0, 0, "0, 0")
+    _corner(W, 0, f"{W}, 0", right=True)
+    _corner(0, H, f"0, {H}", bottom=True)
+    _corner(W, H, f"{W}, {H}", right=True, bottom=True)
+
+    _center_text(W // 2, H // 2,
+                 "Coloque aqui a arte de fundo do seu tema",
+                 (180, 180, 220))
+    _center_text(W // 2, H // 2 + 52,
+                 "1920 x 1080 px  |  16:9  |  PNG ou JPG  |  max. 5 MB",
+                 (120, 120, 150), size=28)
+
+    logo_box = [W - 300, H - 120, W - bx, H - by]
+    draw.rectangle(logo_box, outline=(80, 80, 140), width=1)
+    _label(logo_box[0] + 8, logo_box[1] + 8,
+           "Logotipo / marca\n(opcional)", (80, 80, 180))
+
+    img.save(str(output_path), "PNG")
 
 
 # ── API pública ────────────────────────────────────────────────────────

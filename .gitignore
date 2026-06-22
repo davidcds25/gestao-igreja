@@ -52,3 +52,6 @@ assets/*.jpeg
 assets/*.ico
 assets/*.gif
 assets/*.webp
+
+# Temas personalizados do usuário (adicionados via UI)
+assets/temas_custom/
