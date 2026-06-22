@@ -16,35 +16,28 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
-def authenticate_user(email: str, password: str) -> dict or None:
+def authenticate_user(email: str, password: str) -> dict | None:
     conn = get_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, nome, email, nivel_acesso, ativo, senha
+            FROM usuarios
+            WHERE email = ? AND ativo = 1
+        ''', (email,))
+        row = cursor.fetchone()
+    finally:
+        conn.close()
 
-    cursor.execute('''
-        SELECT id, nome, email, nivel_acesso, ativo
-        FROM usuarios
-        WHERE email = ? AND ativo = 1
-    ''', (email,))
-
-    user = cursor.fetchone()
-    conn.close()
-
-    if not user:
+    if not row:
         return None
 
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT senha FROM usuarios WHERE id = ?', (user['id'],))
-    result = cursor.fetchone()
-    conn.close()
-
-    if not result:
+    if not verify_password(password, row['senha']):
         return None
 
-    if verify_password(password, result['senha']):
-        return dict(user)
-
-    return None
+    user = dict(row)
+    user.pop('senha', None)
+    return user
 
 
 def create_user(nome: str, email: str, password: str, nivel_acesso: str) -> bool:

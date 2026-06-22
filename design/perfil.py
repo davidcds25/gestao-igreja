@@ -9,15 +9,12 @@ import tkinter as tk
 from .ui import COLORS, SPACING, FONTS
 from .ui.helpers import rounded_rect_canvas, initials_of
 
-_NIVEL_COLOR = {
-    "Admin":       COLORS.get("accent",  "#00d4ff"),
-    "Coordenador": "#0891b2",
-    "Usuário":     COLORS.get("purple",  "#9b59b6"),
-}
-
-
 def _nivel_color(nivel: str) -> str:
-    return _NIVEL_COLOR.get(nivel, COLORS["accent2"])
+    return {
+        "Admin":       COLORS.get("accent",  "#00d4ff"),
+        "Coordenador": "#0891b2",
+        "Usuário":     COLORS.get("purple",  "#9b59b6"),
+    }.get(nivel, COLORS.get("accent2", "#00d4ff"))
 
 
 def _avatar(parent, nome: str, nivel: str, size: int, bg: str) -> tk.Canvas:
@@ -229,8 +226,9 @@ class PerfilMenu:
             parent=root,
         )
         if reiniciar:
+            import subprocess
+            subprocess.Popen([sys.executable] + sys.argv)
             root.destroy()
-            os.execv(sys.executable, [sys.executable] + sys.argv)
 
     def _do_logout(self):
         self._close()

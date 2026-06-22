@@ -313,6 +313,7 @@ class DisplayWindow:
         if self._vlc_player is not None:
             try:
                 self._vlc_player.stop()
+                self._vlc_player.release()
             except Exception:
                 pass
             self._vlc_player = None
@@ -427,6 +428,17 @@ class DisplayWindow:
         self._win.deiconify()
         self._win.lift()
         self._win.focus_force()
+
+    @property
+    def is_fullscreen(self) -> bool:
+        return self._fullscreen
+
+    @property
+    def current_monitor(self) -> int:
+        return self._current_monitor
+
+    def set_monitor(self, idx: int) -> None:
+        self._current_monitor = idx
 
     def exists(self) -> bool:
         try:

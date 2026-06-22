@@ -444,6 +444,7 @@ class LoginWindow:
         return wrap
 
     def _login_submit(self):
+        import threading
         email = self._email_var.get().strip()
         senha = self._password_var.get().strip()
 
@@ -458,8 +459,14 @@ class LoginWindow:
                                    bg=COLORS["divider"], fg=COLORS["text_muted"])
         self.root.update_idletasks()
 
-        user = authenticate_user(email, senha)
+        # bcrypt (12 rounds) leva ~200ms — roda em thread para não travar a UI
+        def _worker():
+            user = authenticate_user(email, senha)
+            self.root.after(0, lambda: self._pos_login(user, email))
 
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _pos_login(self, user, email: str) -> None:
         if user:
             # Salva ou apaga o e-mail preservando outras chaves (ex: theme)
             prefs = _load_prefs()
@@ -913,12 +920,8 @@ class LoginWindow:
             w.destroy()
 
     def show_profile(self):
-        messagebox.showinfo(
-            "Meu Perfil",
-            f"Nome:  {self.current_user['nome']}\n"
-            f"Email: {self.current_user['email']}\n"
-            f"Nível: {self.current_user['nivel_acesso']}",
-        )
+        from design.perfil import PerfilModal
+        PerfilModal(self.root, user=self.current_user)
 
     def logout(self):
         self.current_user = None

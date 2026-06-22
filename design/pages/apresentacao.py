@@ -71,7 +71,7 @@ def render(parent, *, callbacks=None, get_display=None):
         dw = get_display()
         if dw:
             dw.set_tema(_tema_var[0])
-            dw._current_monitor = _mon_idx[0]
+            dw.set_monitor(_mon_idx[0])
             dw.show()
 
     def _limpar_display():
@@ -342,10 +342,11 @@ def render(parent, *, callbacks=None, get_display=None):
             i0 = min(_mon_idx[0], len(_mon_list) - 1)
             _mon_var.set(_mon_short_label(i0, _mon_list[i0]))
         multi = len(_mon_list) > 1
-        _btn_trocar.configure(
-            state=tk.NORMAL if multi else tk.DISABLED,
-            fg=COLORS["text"] if multi else COLORS["text_muted"],
-        )
+        if outer.winfo_exists():
+            _btn_trocar.configure(
+                state=tk.NORMAL if multi else tk.DISABLED,
+                fg=COLORS["text"] if multi else COLORS["text_muted"],
+            )
 
     def _on_fs_change(is_fs: bool):
         """Callback chamado pelo DisplayWindow quando o estado fullscreen muda."""
@@ -364,7 +365,7 @@ def render(parent, *, callbacks=None, get_display=None):
     def _tela_cheia_toggle():
         dw = get_display()
         # Se já está em fullscreen → sai
-        if dw and dw.exists() and dw._fullscreen:
+        if dw and dw.exists() and dw.is_fullscreen:
             dw._exit_fullscreen()
             return
         # Garante que o display existe
@@ -386,7 +387,7 @@ def render(parent, *, callbacks=None, get_display=None):
         if not dw or not dw.exists():
             return
         dw.cycle_monitor()
-        _mon_idx[0] = dw._current_monitor
+        _mon_idx[0] = dw.current_monitor
         _refresh_monitors()
 
     _btn_fs = button(monitor_bar, text="⛶  Tela Cheia", kind="ghost",
@@ -1003,11 +1004,8 @@ def render(parent, *, callbacks=None, get_display=None):
 
     _EXTS_IMG = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp", "*.tiff")
     _EXTS_VID = ("*.mp4", "*.avi", "*.mov", "*.mkv", "*.wmv", "*.flv", "*.webm")
-    try:
-        import vlc as _vlc_check  # noqa: F401
-        _VIDEO_OK = True
-    except Exception:
-        _VIDEO_OK = False
+    from ..modals.apresentacao_display import DisplayWindow as _DW_cls
+    _VIDEO_OK = _DW_cls.video_disponivel()
 
     # ── Grid: linha 0 = listas, linha 1 = preview+controles ────────────
     tab_midia_frame.rowconfigure(0, weight=1)
@@ -1270,8 +1268,9 @@ def render(parent, *, callbacks=None, get_display=None):
         if not dw or not dw.exists():
             return
         player = dw.get_player()
-        if player and player.get_length() > 0:
-            ms = int(_seek_var.get() / 1000 * player.get_length())
+        length = player.get_length() if player else 0
+        if length > 0:
+            ms = int(_seek_var.get() / 1000 * length)
             player.set_time(ms)
 
     _seek_slider.bind("<ButtonPress-1>",   _on_seek_press)

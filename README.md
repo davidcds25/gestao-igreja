@@ -27,8 +27,13 @@ Aplicativo desktop para gestão de igrejas: membros, eventos, comunicação via 
 - **Módulo de Apresentação** com display dedicado para projetor/TV:
   - Aba **Som**: biblioteca de músicas com busca, paginação de letra por estrofes e navegação por teclado no display
   - Aba **Versículo ao Vivo**: busca por referência (ex: João 3:16) com seletor de tradução PT via api.bible
-  - Janela separada para projetor com fundo temático (6 temas: dourado, navy, vinho, mata, roxo, petróleo), outline de texto e font caching
-- Interface dark theme com design system consistente (tokens, componentes, modais)
+  - Aba **Mídia**: reprodução de imagens e vídeos (MP4, AVI, MKV etc.) com player VLC integrado — controles de play/pause, seek por clique, volume e tempo
+  - **Multi-monitor**: seleção do monitor de destino, botão "Tela Cheia / Modo Janela" e "Trocar Monitor" — padrão para o segundo monitor quando disponível
+  - **Temas personalizados**: seletor dropdown + botão `[+]` para importar PNG/JPG próprio, popup com especificações e botão "Gerar Template PNG" que cria o arquivo-guia e abre no editor padrão
+  - Janela de display com fundo temático (10 temas integrados + ilimitados personalizados), outline de texto e auto-redução de fonte para letras longas
+- Perfil do usuário acessível pelo chip de nome no cabeçalho
+- Alternância de tema claro/escuro com persistência entre sessões
+- Interface dark/light theme com design system consistente (tokens, componentes, modais)
 - Scroll com mouse wheel em todas as telas — nunca rola acima do título, só desce se houver conteúdo além da área visível, velocidade natural (~40 px por tick)
 
 ## Níveis de Acesso
@@ -63,7 +68,9 @@ Projeto/
 ├── requirements.txt
 ├── start.bat                    # Atalho Windows para iniciar o app
 ├── scripts/
-│   └── pre-push.ps1             # Checklist guiado antes do push (PowerShell)
+│   ├── pre-push.ps1             # Checklist guiado antes do push (PowerShell)
+│   ├── build_installer.ps1      # Gera instalador .exe com VLC embutido (Inno Setup)
+│   └── gerar_template_tema.py   # CLI para gerar template PNG de tema personalizado
 │
 ├── assets/                      # Assets da marca (gitignored — cada org fornece os seus)
 │   └── README.md                # Documenta os nomes de arquivo esperados
@@ -71,8 +78,9 @@ Projeto/
 ├── themes.py                    # Paletas temáticas para o display de apresentação
 │
 ├── core/                        # Lógica de negócio
-│   ├── auth.py                  # Autenticação e criptografia
-│   ├── assets.py                # Carregamento centralizado de logos e fundos do display
+│   ├── auth.py                  # Autenticação e criptografia (bcrypt, query única com try/finally)
+│   ├── assets.py                # Logos, fundos do display + temas personalizados + gerador de template PNG
+│   ├── prefs.py                 # Preferências do usuário persistidas em JSON (tema, e-mail)
 │   ├── database.py              # Banco de dados e migrações automáticas
 │   ├── users.py                 # CRUD de usuários
 │   ├── members.py               # CRUD de membros + crescimento_mensal()
@@ -92,7 +100,7 @@ Projeto/
 │   │   ├── home.py              # Dashboard (KPIs, eventos, aniversariantes)
 │   │   ├── activities.py        # Atividades e eventos
 │   │   ├── members.py           # Lista de membros (filtros, paginação)
-│   │   ├── apresentacao.py      # Módulo de apresentação (som + versículo ao vivo)
+│   │   ├── apresentacao.py      # Módulo de apresentação (som + versículo + mídia + temas)
 │   │   ├── whatsapp.py          # Envio de mensagens (individual e em lote)
 │   │   ├── users.py             # Gerenciamento de usuários
 │   │   ├── reports.py           # Relatórios (4 abas + exportação PDF)
@@ -102,10 +110,11 @@ Projeto/
 │   │   ├── activity.py          # ActivityModal — Nova/Editar atividade
 │   │   ├── member.py            # MemberModal — Novo/Editar membro
 │   │   ├── musica.py            # MusicaModal — Nova/Editar música
-│   │   ├── apresentacao_display.py  # DisplayWindow — janela projetor/TV
+│   │   ├── apresentacao_display.py  # DisplayWindow — janela projetor/TV (multi-monitor, VLC)
 │   │   ├── user.py              # UserModal — Novo/Editar usuário (Admin)
 │   │   ├── password_reset.py    # PasswordResetModal — Redefinir senha
 │   │   └── confirm.py           # ConfirmModal + ask_confirm() helper
+│   ├── perfil.py                # PerfilMenu + PerfilModal — chip de usuário no cabeçalho
 │   └── app_shell.py             # Shell (header + sidebar + área de conteúdo)
 │
 ├── views/                       # Controladores
@@ -386,12 +395,32 @@ O Claude Code executa automaticamente hooks de proteção a cada operação:
 
 ## Compilar para Executável
 
+### Executável simples
+
 ```bash
 pyinstaller --onefile --windowed --name "gestao-igreja" main.py
 ```
 
 O executável será gerado em `dist/gestao-igreja.exe`.
 
+### Instalador completo (com VLC embutido)
+
+```powershell
+.\scripts\build_installer.ps1
+```
+
+Gera `dist/gestao-igreja-setup-<versão>.exe` via Inno Setup. O instalador baixa e instala o VLC automaticamente se não estiver presente. Requer:
+- [Inno Setup 6](https://jrsoftware.org/isdl.php) instalado (`winget install JRSoftware.InnoSetup`)
+- Conexão com a internet (para baixar o VLC, ~44 MB)
+
+### Temas personalizados — template para designers
+
+```powershell
+python scripts/gerar_template_tema.py
+```
+
+Gera um PNG 1920×1080 com zonas de segurança marcadas para usar como base no editor de imagem. Dentro do app, o botão **"📐 Gerar Template PNG"** faz o mesmo com um clique.
+
 ---
 
-Desenvolvido com Python 3 · tkinter · SQLite · fpdf2
+Desenvolvido com Python 3 · tkinter · SQLite · fpdf2 · python-vlc
